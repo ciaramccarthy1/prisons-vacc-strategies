@@ -1,0 +1,1099 @@
+## FUNCTIONS ##
+
+# binary lockdown function
+
+control_lockdown = function(
+  threshold_lockdown1,  # Daily new cases above which lockdown is implemented. Vector: recycled to number of populations if needed.
+  contact_lockdown1,    # Contact during lockdown (e.g. c(0.5, 0.5, 0.5, 0.5) ). Same for all populations  ## HAVE CHANGED THIS TO ONLY p=2 b/c want to reduce contacts for prisoners only ##
+  threshold_release,    # Daily new cases below which lockdown is released. Recycled if necessary.
+  contact_release       # Contact during lockdown release (e.g. c(1, 1, 1, 1))
+) 
+{
+  as_init_list = function(x) paste0("{ ", paste0(x, collapse = ", "), " }");
+  str_interp('
+             const int obsStage = 0;
+             const int obsR0 = 1;
+             const int obsRt = 2;
+             const vector<double> threshold_lockdown1 = { ${ paste0(threshold_lockdown1, collapse = ", ") } };
+             const vector<double> threshold_release   = { ${ paste0(threshold_release,   collapse = ", ") } };
+             
+             auto set_contact = [&](unsigned int p, vector<double> con, int stage) {
+               P.pop[p].contact = con;
+               P.pop[p].needs_recalc = true;
+               P.pop[p].Recalculate();
+               dyn.Obs(t, p, obsStage, 0) = stage;
+             };
+  
+             for (unsigned int p = 0; p < P.pop.size(); ++p)
+             {
+               
+if (t > 0)
+               {
+                 int prev_stage = dyn.Obs(t - 1, p, obsStage, 0);
+                 
+
+                 double curr_incidence  = dyn("cases", t, { p }, {}) ;
+                 
+                 if (curr_incidence >= threshold_lockdown1[p % threshold_lockdown1.size()])
+                   set_contact(p, ${ as_init_list(contact_lockdown1) }, 1);
+                 else if (prev_stage!=0 && curr_incidence < threshold_release[p % threshold_release.size()])
+                   set_contact(p, ${ as_init_list(contact_release)  }, 2);
+                 else
+                   dyn.Obs(t, p, obsStage, 0) = prev_stage;
+               }
+
+               
+               dyn.Obs(t, p, obsR0, 0) = estimate_R0(P, t, p, 20);
+               dyn.Obs(t, p, obsRt, 0) = estimate_Rt(P, dyn, t, p, 20);
+             }');
+}
+    
+# To use the observer we need to resource the backend with the observer compiled in.
+# be warned though: if you use the compiler you change the NPI and it is in there unless changed explicitly! (or restarting/reloading)
+fun_lockdown <- function(lockdown_ini = 10, contact_ini = c(0.5, 0.5, 0.5, 0.5), #home, work, school, and other
+                         lockdown_end = 1,  contact_end = c(1, 1, 1, 1)){
+  
+  cm_source_backend(
+    user_defined = list(model_v2 = list(cpp_observer = 
+                                          control_lockdown(lockdown_ini, contact_ini,
+                                                           lockdown_end, contact_end
+                                          ))))
+}
+
+# plot labelling function
+labelforplots <- function(x){
+  x %>%
+    mutate(scenario = ifelse(scenario_run=="run1", "(1) no vaccination",
+                             ifelse(scenario_run=="run2", "(2) non-prisoner-\nfacing staff",
+                                    ifelse(scenario_run=="run3", "(3) prisoner-facing\nstaff",
+                                           ifelse(scenario_run=="run4", "(4) all staff",
+                                                  ifelse(scenario_run=="run5", "(5) all prisoners",
+                                                         ifelse(scenario_run=="run6", "(6) all prisoners and staff 50+",
+                                                                ifelse(scenario_run=="run7", "(7) all prisoners and staff",
+                                                                       NA))))))),
+           scenario_nr = ifelse(scenario_run=="run1", "(1)",
+                                ifelse(scenario_run=="run2", "(2)",
+                                       ifelse(scenario_run=="run3", "(3)",
+                                              ifelse(scenario_run=="run4", "(4)",
+                                                     ifelse(scenario_run=="run5", "(5)",
+                                                            ifelse(scenario_run=="run6", "(6)",
+                                                                   ifelse(scenario_run=="run7", "(7)",
+                                                                          NA)))))))) %>%
+    mutate(scenario = factor(scenario, levels = c("(1) no vaccination",
+                                                  "(2) non-prisoner-\nfacing staff",
+                                                  "(3) prisoner-facing\nstaff",
+                                                  "(4) all staff",
+                                                  "(5) all prisoners",
+                                                  "(6) all prisoners and staff 50+",
+                                                  "(7) all prisoners and staff")))
+}
+
+# Epicurve function
+
+CurveFun <- function(x){
+  for_epicurve <- x %>% group_by(t, scenario_run, population, run) %>% summarise(cases=sum(total))
+  for_epicurve <- for_epicurve %>% group_by(t, scenario_run, run) %>% summarise(cases=sum(cases)) %>% mutate(population="(A-C) all prisoners and staff")
+  for_epicurve <- labelforplots(for_epicurve)
+  for_epicurve$run <- as.factor(for_epicurve$run)
+  return(for_epicurve)}
+
+## FOR PSA ##
+
+beta_mom <- function(mean, se){
+  alpha <- mean*(mean*(1-mean)/(se^2)-1)
+  beta <- (alpha/mean)-alpha
+if (se^2 >= mean * (1 - mean)) stop("var must be less than mean * (1 - mean)")
+  return(list(alpha=alpha, beta=beta))}
+
+gamma_mom <- function(mean, se){
+  alpha <- (mean^2)/(se^2)
+  beta <- (se^2)/mean
+  return(list(alpha=alpha, beta=beta))}
+
+lognorm_mom <- function(mean,sd){
+  mu <- log(mean/sqrt((sd^2/mean^2)+1))
+  sigma <- sqrt(log((sd^2/mean^2)+1))
+  return(list(meanlog=mu, sdlog=sigma))
+}
+  
+# AEFI function
+
+  aefi.func <- function(scenario_run, popn){
+    vacc_vector <- if(exists(paste0("vacc_vals", scenario_run, ".pop", popn))) get(paste0("vacc_vals", scenario_run, ".pop", popn)) else c(rep(0,16))
+    vacc_period <- if(exists(paste0("done", scenario_run))) get(paste0("done", scenario_run)) else 1
+    totaldoses <- (vacc_vector*vacc_period + (vacc_vector/7)*(timehorizon+delay-vacc_period-28)) + (vacc_vector*vacc_period + (vacc_vector/7)*(timehorizon+delay-vacc_period-((7*12)+14)))
+    return(totaldoses)
+  }
+  
+#################################
+####### PSA FUNCTIONs ###########
+#################################
+  
+  
+  createpsa <- function(seed, n_psa){
+    set.seed(seed)
+    sampleLSH <-randomLHS(n=n_psa, k=n_parms)
+    psa <- data.frame(
+      imm_vac=1/(qlnorm(sampleLSH[,1], meanlog=imm.parms$meanlog, sdlog=imm.parms$sdlog)), # inverse of duration to get rate
+      imm_nat=1/(qlnorm(sampleLSH[,2], meanlog=imm.parms$meanlog, sdlog=imm.parms$sdlog)), # inverse of duration to get rate
+      staff_to=qbeta(sampleLSH[,3], shape1=staff.parms$alpha, shape2=staff.parms$beta), # /365.25 to get daily rate
+      b_rate=qbeta(sampleLSH[,4], shape1=pris.parms$alpha, shape2=pris.parms$beta),
+      qaly.sym=qbeta(sampleLSH[,5], shape1=sym.parms$alpha, shape2=sym.parms$beta),
+      qaly.nonicu=qbeta(sampleLSH[,6], shape1=nonicu.parms$alpha, shape2=nonicu.parms$beta),
+      qaly.icu=qbeta(sampleLSH[,7], shape1=icu.parms$alpha, shape2=icu.parms$beta),
+      eff_inf1=qbeta(sampleLSH[,8], shape1=infeff1.parms$alpha, shape2=infeff1.parms$beta),
+      eff_inf2=qbeta(sampleLSH[,9], shape1=infeff2.parms$alpha, shape2=infeff2.parms$beta),
+      eff_dis1=qbeta(sampleLSH[,10], shape1=diseff1.parms$alpha, shape2=diseff1.parms$beta),
+      eff_dis2=qbeta(sampleLSH[,11], shape1=diseff2.parms$alpha, shape2=diseff2.parms$beta),
+      target_R0=qlnorm(sampleLSH[,12], meanlog=R0.parms$meanlog, sdlog=R0.parms$sdlog),
+      prev=qunif(sampleLSH[,13], min=0.0003, max=0.0206),
+      LFD.uptake=qbeta(sampleLSH[,14], shape1=lfd.uptake.parms$alpha, shape2=lfd.uptake.parms$beta),
+      LFD.sens=qbeta(sampleLSH[,15], shape1=lfd.parms$alpha, shape2=lfd.parms$beta),
+      vac.uptake=qbeta(sampleLSH[,16], shape1=vac.parms$alpha, shape2=vac.parms$beta)
+    )
+    return(psa)
+  }
+  
+  ###############################################
+  ##### Running scenarios using psa values ######
+  ###############################################
+  
+  psafunc <- function(n_psa, psa){
+    n_psa <- n_psa
+    results_psa <- data.frame()
+    qaly_psa <- data.frame()
+    deaths_psa <- data.frame()
+    dose_psa <- data.frame()
+    psa <- psa
+    
+    tic()
+    params_list <- list()
+    for(k in 1:n_psa){
+      psa.values <- psa[k,]
+      for(i in 1:nr_pops){
+        params$pop[[i]]$wn <- rep(psa.values$imm_nat, 16)
+        params$pop[[i]]$wv <- rep(psa.values$imm_vac, 16)
+        params$pop[[i]]$wv2 <- rep(psa.values$imm_vac, 16)
+        params$pop[[i]]$ei_v <- rep(psa.values$eff_inf1,16) # vaccine efficacy against infection, first dose
+        params$pop[[i]]$ei_v2 <- rep(psa.values$eff_inf2,16) # vaccine efficacy against infection, second dose
+        params$pop[[i]]$ed_vi <- rep(psa.values$eff_dis1,16) # vaccine efficacy against disease given infection, first dose (i.e. no additional protection)
+        params$pop[[i]]$ed_vi2 <- rep(psa.values$eff_dis2,16) # vaccine efficacY against disease given infection, second dose (0.78-0.67)/(1-0.67)
+      }
+      
+      params$pop[[1]]$B <- psa.values$staff_to * age_staff
+      params$pop[[2]]$B <- psa.values$staff_to * age_staff
+      params$pop[[1]]$D <- rep(psa.values$staff_to,16)
+      params$pop[[2]]$D <- rep(psa.values$staff_to,16)
+      
+      params$pop[[3]]$B <- psa.values$b_rate * age_prisoners # daily
+      params$pop[[3]]$D <- rep(psa.values$b_rate, 16)
+      
+      
+      ## QALYs ##
+      
+      qalycalc$qaly.value[qalycalc$compartment=="cases"] <- psa.values$qaly.sym
+      qalycalc$qaly.value[qalycalc$compartment=="icu_p"] <- psa.values$qaly.icu
+      qalycalc$qaly.value[qalycalc$compartment=="nonicu_p"] <- psa.values$qaly.nonicu
+      
+      
+      ## R0 - scaling ##
+      
+      for(i in 1:nr_pops){
+        # age-dependent ratio of infection:cases (based on Davies et al, Nature paper)
+        params$pop[[i]]$y <- c(0.2904047, 0.2904047, 0.2070468, 0.2070468, 0.2676134,
+                               0.2676134, 0.3284704, 0.3284704, 0.3979398, 0.3979398,
+                               0.4863355, 0.4863355, 0.6306967, 0.6306967, 0.6906705, 0.6906705)
+        
+        # susceptibility (based on Davies et al, Nature paper)
+        params$pop[[i]]$u <- c(0, 0, 0, 0.3815349, 0.7859512,
+                               0.7859512, 0.8585759, 0.8585759, 0.7981468, 0.7981468,
+                               0.8166960, 0.8166960, 0.8784811, 0.8784811, 0.7383189, 0.7383189)
+        
+        
+        # scale u (susceptibility) to achieve desired R0
+        current_R0 = cm_calc_R0(params, i); # calculate R0 in population i of params
+        params$pop[[i]]$u = params$pop[[i]]$u * psa.values$target_R0 / current_R0
+      } 
+      
+      ## Community prevalence and contacts ##
+      
+      # Prevalence * number of contacts * susceptibility * proportion undetected 
+      
+      psa.lambda <- psa.values$prev*contacts*u*(1-psa.values$LFD.uptake)*(1-psa.values$LFD.sens)*(1-(psa.values$vac.uptake*psa.values$eff_inf2))
+      
+      # 0.003 and 0.0206 = high and low rolling 14-day average proportion of PCR tests coming back positive -> if a prevalence, does it matter if daily or fortnightly?
+      
+      psa.seed_freq.NPF <- 1/sum(psa.lambda*params$pop[[1]]$size)
+      psa.seed_freq.PF <- 1/sum(psa.lambda*params$pop[[2]]$size)
+      
+      # Imported infections
+      
+      params$pop[[1]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.NPF)), 0)
+      params$pop[[2]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.PF)), 0)
+      params$pop[[3]]$seed_times <- 365.25
+      for(i in nr_pops){params$pop[[i]]$dist_seed_ages <- c(rep(0,3), rep(1,13))}
+      
+      uptake <- psa.values$vac.uptake
+      
+      #### VACCINATION RATE - NEW PRISONERS/STAFF
+      new1 <- n_vacc_daily/(sum(params$pop[[1]]$size)*psa.values$staff_to*uptake)
+      new2 <- n_vacc_daily/(sum(params$pop[[2]]$size)*psa.values$staff_to*uptake)
+      new3 <- n_vacc_daily/(sum(params$pop[[3]]$size)*psa.values$b_rate*uptake)
+      
+      prop.pop1 <- sum(params$pop[[1]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
+      prop.pop2 <- sum(params$pop[[2]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
+      prop.pop3 <- sum(params$pop[[3]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
+      
+      vacc_vals7.pop1 <- c((n_vacc_daily-5)*prop.pop1*params$pop[[1]]$size/sum(params$pop[[1]]$size))
+      vacc_vals7.pop2 <- c((n_vacc_daily-5)*prop.pop2*params$pop[[2]]$size/sum(params$pop[[2]]$size))
+      vacc_vals7.pop3 <- c((n_vacc_daily-5)*prop.pop3*params$pop[[3]]$size/sum(params$pop[[3]]$size)) + 5*params$pop[[3]]$size/sum(params$pop[[3]]$size)
+      
+      new1.7 <- sum(vacc_vals7.pop1)/(sum(params$pop[[1]]$size)*psa.values$staff_to*uptake)
+      new2.7 <- sum(vacc_vals7.pop2)/(sum(params$pop[[2]]$size)*psa.values$staff_to*uptake)
+      new3.7 <- sum(vacc_vals7.pop3)/(sum(params$pop[[3]]$size)*psa.values$b_rate*uptake)
+      # Vacc short #
+      
+      if(exists("run")){rm(run)}
+      n <- 1 # number of runs = 1 (currently deterministic)
+      
+      dose_gap <- 7*12
+      
+      # scenarios
+      # (1) no vaccination
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule <- list()         # no scheduled changes to parameters
+      run1 <- cm_simulate(params, 1)
+      results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
+      rm(run1)
+      
+      # (2) Just non-prisoner facing (non-operational) staff
+      
+      ## Number of doses needed for this strategy:
+      scen2 <- sum(params$pop[[1]]$size)*uptake
+      ## Number of days needed to administer this number of doses
+      done2 <- scen2/n_vacc_daily
+      if(done2>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      
+      vacc_vals2 <- c(n_vacc_daily * params$pop[[1]]$size/sum(params$pop[[1]]$size))
+      
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule <- list() 
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = 0,
+          mode = "assign",
+          values = list(vacc_vals2, vacc_vals2/new1),
+          times = c(immune1,immune1+done2)),
+        list(
+          parameter = "v12",
+          pops = 0,
+          mode = "assign",
+          values = list(vacc_vals2),
+          times = c(immune2))
+      )
+      # Both first and second doses only administered for a short period required to vaccinate up to assumed uptake.
+      
+      run2 = cm_simulate(params, 1)
+      #  results_run2 = run2$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run2")
+      results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
+      rm(run2)
+      # (3) Just prisoner facing staff
+      
+      ## Number of doses needed for this strategy:
+      scen3 <- sum(params$pop[[2]]$size)*uptake
+      ## Number of days needed to administer this number of doses
+      done3 <- scen3/n_vacc_daily
+      if(done3>12*7){cat(red("Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      
+      vacc_vals3 <-   c(n_vacc_daily * params$pop[[2]]$size/sum(params$pop[[2]]$size))
+      # vacc_vals3 <- list
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v <- rep(0,16)
+        params$pop[[i]]$v12 <- rep(0,16)
+      }
+      params$schedule <- list() 
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = 1,
+          mode = "assign",
+          values = list(vacc_vals3, vacc_vals3/new2),
+          times = c(immune1, immune1+done3)),
+        list(
+          parameter = "v12",
+          pops = 1,
+          mode = "assign",
+          values = list(vacc_vals3),
+          times = c(immune2)))
+      
+      run3 = cm_simulate(params, 1)
+      #  results_run3 = run3$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run3")
+      results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
+      rm(run3)
+      gc()
+      
+      # (4) All prison staff
+      
+      ## Number of doses needed for this strategy:
+      scen4 <- sum(params$pop[[1]]$size+params$pop[[2]]$size)*uptake
+      ## Number of days needed to administer this number of doses
+      done4 <- scen4/n_vacc_daily
+      if(done4>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      prop.pop1 <- sum(params$pop[[1]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size)
+      prop.pop2 <- sum(params$pop[[2]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size)
+      
+      vacc_vals4.pop1 <- c(n_vacc_daily*prop.pop1*params$pop[[1]]$size/sum(params$pop[[1]]$size))
+      vacc_vals4.pop2 <- c(n_vacc_daily*prop.pop2*params$pop[[2]]$size/sum(params$pop[[2]]$size))
+      # vacc_vals4 <- list(c(rep(0,3), rep(1, 13)))
+      params$schedule <- list() 
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = c(0), # populations are from 0 to N-1
+          mode = "assign",
+          values = list(vacc_vals4.pop1, vacc_vals4.pop1/new1),
+          times = c(immune1, immune1+done4)),
+        list(
+          parameter = "v12",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals4.pop1),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(1), # populations are from 0 to N-1
+          mode = "assign",
+          values = list(vacc_vals4.pop2, vacc_vals4.pop2/new2),
+          times = c(immune1, immune1+done4)),
+        list(
+          parameter = "v12",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals4.pop2),
+          times = c(immune2)))
+      
+      
+      run4 = cm_simulate(params, 1)
+      # results_run4 = run4$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run4")
+      results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
+      rm(run4)
+      gc()
+      
+      # (5) prison population
+      
+      scen5 <- sum(params$pop[[3]]$size)*uptake
+      ## Number of days needed to administer this number of doses
+      done5 <- scen5/n_vacc_daily
+      
+      while((sum(params$pop[[3]]$size)*b_rate*done5 + sum(params$pop[[3]]$size))*0.9 > 20*done5){
+        done5 <- done5+1
+      }
+      if(done5>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      
+      ## Number of doses needed for this strategy:
+      params$schedule <- list() 
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      vacc_vals5 <- c(n_vacc_daily * params$pop[[3]]$size/sum(params$pop[[3]]$size))
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = 2,
+          mode = "assign",
+          values = list(vacc_vals5, vacc_vals5/new3),
+          times = c(immune1, immune1+done5)),
+        list(
+          parameter = "v12",
+          pops = 2,
+          mode = "assign",
+          values = list(vacc_vals5),
+          times = c(immune2)))
+      
+      run5 = cm_simulate(params, 1)
+      # results_run5 = run5$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run5")
+      results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
+      gc()
+      rm(run5)
+      
+      #6 Just vulnerable (over 50) population
+      
+      total.popn <-  sum(params$pop[[1]]$size[11:16]+params$pop[[2]]$size[11:16]+params$pop[[3]]$size[11:16])
+      ## Number of doses needed for this strategy:
+      scen6 <-total.popn*uptake
+      ## Number of days needed to administer this number of doses
+      done6 <- scen6/n_vacc_daily
+      ## Accounting for new arrivals over period of vaccine programme
+      while((sum(params$pop[[1]]$size[11:16])*staff_to*done6 + sum(params$pop[[2]]$size[11:16])*staff_to*done6 + sum(params$pop[[3]]$size[11:16])*b_rate*done6 + total.popn)*0.9 > 20*done6){
+        done6 <- done6+1
+      }
+      
+      
+      if(done6>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      prop.pop1 <- sum(params$pop[[1]]$size[11:16])/sum(params$pop[[1]]$size[11:16]+params$pop[[2]]$size[11:16]+params$pop[[3]]$size[11:16])
+      prop.pop2 <- sum(params$pop[[2]]$size[11:16])/sum(params$pop[[1]]$size[11:16]+params$pop[[2]]$size[11:16]+params$pop[[3]]$size[11:16])
+      prop.pop3 <- sum(params$pop[[3]]$size[11:16])/sum(params$pop[[1]]$size[11:16]+params$pop[[2]]$size[11:16]+params$pop[[3]]$size[11:16])
+      
+      
+      vacc_vals6.pop1 <-c(rep(0,10), n_vacc_daily*prop.pop1*params$pop[[1]]$size[11:16]/sum(params$pop[[1]]$size[11:16]))
+      vacc_vals6.pop2 <-c(rep(0,10), n_vacc_daily*prop.pop2*params$pop[[2]]$size[11:16]/sum(params$pop[[2]]$size[11:16]))
+      vacc_vals6.pop3 <-c(rep(0,10), n_vacc_daily*prop.pop3*params$pop[[3]]$size[11:16]/sum(params$pop[[3]]$size[11:16]))
+      
+      params$schedule <- list() 
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals6.pop1, vacc_vals6.pop1/new1),
+          times = c(immune1, immune1+done6)),
+        list(
+          parameter = "v12",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals6.pop1),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals6.pop2, vacc_vals6.pop2/new2),
+          times = c(immune1, immune1+done6)),
+        list(
+          parameter = "v12",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals6.pop2),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(2),
+          mode = "assign",
+          values = list(vacc_vals6.pop3, vacc_vals6.pop3/new3),
+          times = c(immune1, immune1+done6)),
+        list(
+          parameter = "v12",
+          pops = c(2),
+          mode = "assign",
+          values = list(vacc_vals6.pop3),
+          times = c(immune2)))
+      
+      run6 = cm_simulate(params, 1)
+      # results_run6 = run6$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run6")
+      results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
+      rm(run6)
+      gc()
+      
+      #7 All
+      
+      ## Number of doses needed for this strategy:
+      total.popn <- sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
+      scen7 <- total.popn*uptake
+      done7 <- scen7/n_vacc_daily
+      while((prisoner_pop*b_rate*done7 + 70*staff_to*done7 + 315*staff_to*done7 + total.popn)*0.9 > 20*done7){
+        done7 <- done7+1
+      }
+      
+      ## Number of days needed to administer this number of doses
+      
+      if(done7>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      
+      # vacc_vals7 <- list(c(rep(0,3), rep(1, 13)))
+      params$schedule <- list() 
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals7.pop1, vacc_vals7.pop1/new1.7),
+          times = c(immune1, immune1+done7)),
+        list(
+          parameter = "v12",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals7.pop1),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals7.pop2, vacc_vals7.pop2/new2.7),
+          times = c(immune1, immune1+done7)),
+        list(
+          parameter = "v12",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals7.pop2),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(2),
+          mode = "assign",
+          values = list(vacc_vals7.pop3, vacc_vals7.pop3/new3.7),
+          times = c(immune1, immune1+done7)),
+        list(
+          parameter = "v12",
+          pops = c(2),
+          mode = "assign",
+          values = list(vacc_vals7.pop3),
+          times = c(immune2)))
+      
+      gc()
+      run7 = cm_simulate(params, 1)
+      # results_run7 = run7$dynamics[c(compartment == "cases_i"), .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run7")
+      results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
+      rm(run7)
+      gc()
+      
+      # get all scenarios
+      
+      results_df = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>% dplyr::filter(compartment=="cases")
+      
+      # same for qalys 
+      
+      results_qalys = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>%
+        group_by(scenario_run, run, group, population, compartment) %>% summarise(total=sum(total))
+      
+      results_qalys <- results_qalys %>%
+        group_by(scenario_run, population, group, compartment) %>% 
+        summarise(total=mean(total)) %>% ungroup()
+      
+      results_dose = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>% dplyr::filter(compartment %in% c("onedose_i", "twodose_i"))
+      totaldose <- results_dose %>% group_by(scenario_run, group, population) %>% summarise(total=sum(total))
+      
+      results_qalys <- rbind(results_qalys, totaldose %>% mutate(compartment="aefi.minor"))
+      results_qalys <- rbind(results_qalys, totaldose %>% mutate(compartment="aefi.fatal"))
+      
+      results_qalys <- left_join(results_qalys, qalycalc, by=c("compartment", "group", "population")) %>% filter(compartment!=c("onedose_i", "twodose_i"))
+      results_qalys <- results_qalys %>% mutate(qaly.loss=total*qaly.value) %>% 
+        group_by(scenario_run, population) %>% 
+        summarise(qaly.loss=sum(qaly.loss)) %>% 
+        ungroup()
+      
+      
+      results_qalys <- rbind(results_qalys, results_qalys %>% group_by(scenario_run) %>% summarise(qaly.loss=sum(qaly.loss), population="(A-C) all prisoners and staff"))
+      
+      ## same for deaths
+      
+      results_deaths = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>% dplyr::filter(compartment=="death_o")
+      
+      ### END OF VACC SHORT ###
+      
+      results_df <- results_df %>% dplyr::filter(compartment=="cases") %>% 
+        mutate(run=k)
+      results_psa <- rbind(results_psa, results_df)
+      results_qalys <- results_qalys %>% mutate(run=k)
+      qaly_psa <- rbind(results_qalys, qaly_psa)
+      results_deaths <- results_deaths %>% mutate(run=k)
+      deaths_psa <- rbind(deaths_psa, results_deaths)
+      results_dose <- results_dose %>% mutate(run=k)
+      dose_psa <- rbind(dose_psa, results_dose)
+      rm(results_df)
+      rm(results_qalys)
+      rm(results_deaths)
+      rm(results_dose)
+    }
+    toc()
+    psa <- psa %>% mutate(run=1:n_psa)
+    cases_prcc <- results_psa %>% group_by(scenario_run, run) %>% summarise(total=sum(total)) %>% left_join(psa, by=c("run"))
+    case.total <- results_psa %>% group_by(scenario_run, run) %>% summarise(total=sum(total))
+    case.time <- results_psa %>% group_by(scenario_run, t, run) %>% summarise(total=sum(total))
+    rm(results_psa)
+    qaly.total <- qaly_psa %>% group_by(scenario_run, run) %>% summarise(total=sum(qaly.loss))
+    qaly_prcc <- qaly_psa %>% group_by(scenario_run, run) %>% summarise(total=sum(qaly.loss)) %>% left_join(psa, by=c("run"))
+    rm(qaly_psa)
+    dose.total <- dose_psa %>% filter(compartment=="twodose_i") %>% group_by(scenario_run, run) %>% summarise(vacc.count=sum(total))
+    rm(dose_psa)
+    death.total <- deaths_psa %>% group_by(scenario_run, run) %>% summarise(total=sum(total))
+    rm(deaths_psa)
+    return(list(case.total, case.time, qaly.total, death.total, cases_prcc, qaly_prcc, dose.total))}
+  
+  
+  ## PSA FUNC - FIGURE 7
+  
+  
+  psa.age <- function(n_psa, psa){
+    n_psa <- n_psa
+    results_psa <- data.frame()
+    qaly_psa <- data.frame()
+    deaths_psa <- data.frame()
+    dose_psa <- data.frame()
+    psa <- psa
+    
+    tic()
+    params_list <- list()
+    for(k in 1:n_psa){
+      psa.values <- psa[k,]
+      for(i in 1:nr_pops){
+        params$pop[[i]]$wn <- rep(psa.values$imm_nat, 16)
+        params$pop[[i]]$wv <- rep(psa.values$imm_vac, 16)
+        params$pop[[i]]$wv2 <- rep(psa.values$imm_vac, 16)
+        params$pop[[i]]$ei_v <- rep(psa.values$eff_inf1,16) # vaccine efficacy against infection, first dose
+        params$pop[[i]]$ei_v2 <- rep(psa.values$eff_inf2,16) # vaccine efficacy against infection, second dose
+        params$pop[[i]]$ed_vi <- rep(psa.values$eff_dis1,16) # vaccine efficacy against disease given infection, first dose (i.e. no additional protection)
+        params$pop[[i]]$ed_vi2 <- rep(psa.values$eff_dis2,16) # vaccine efficacY against disease given infection, second dose (0.78-0.67)/(1-0.67)
+      }
+      
+      params$pop[[1]]$B <- psa.values$staff_to * age_staff
+      params$pop[[2]]$B <- psa.values$staff_to * age_staff
+      params$pop[[1]]$D <- rep(psa.values$staff_to,16)
+      params$pop[[2]]$D <- rep(psa.values$staff_to,16)
+      
+      params$pop[[3]]$B <- psa.values$b_rate * age_prisoners # daily
+      params$pop[[3]]$D <- rep(psa.values$b_rate, 16)
+      
+      
+      ## QALYs ##
+      
+      qalycalc$qaly.value[qalycalc$compartment=="cases"] <- psa.values$qaly.sym
+      qalycalc$qaly.value[qalycalc$compartment=="icu_p"] <- psa.values$qaly.icu
+      qalycalc$qaly.value[qalycalc$compartment=="nonicu_p"] <- psa.values$qaly.nonicu
+      
+      
+      ## R0 - scaling ##
+      
+      for(i in 1:nr_pops){
+        # age-dependent ratio of infection:cases (based on Davies et al, Nature paper)
+        params$pop[[i]]$y <- c(0.2904047, 0.2904047, 0.2070468, 0.2070468, 0.2676134,
+                               0.2676134, 0.3284704, 0.3284704, 0.3979398, 0.3979398,
+                               0.4863355, 0.4863355, 0.6306967, 0.6306967, 0.6906705, 0.6906705)
+        
+        # susceptibility (based on Davies et al, Nature paper)
+        params$pop[[i]]$u <- c(0, 0, 0, 0.3815349, 0.7859512,
+                               0.7859512, 0.8585759, 0.8585759, 0.7981468, 0.7981468,
+                               0.8166960, 0.8166960, 0.8784811, 0.8784811, 0.7383189, 0.7383189)
+        
+        
+        # scale u (susceptibility) to achieve desired R0
+        current_R0 = cm_calc_R0(params, i); # calculate R0 in population i of params
+        params$pop[[i]]$u = params$pop[[i]]$u * psa.values$target_R0 / current_R0
+      } 
+      
+      ## Community prevalence and contacts ##
+      
+      # Prevalence * number of contacts * susceptibility * proportion undetected 
+      
+      psa.lambda <- psa.values$prev*contacts*u*(1-psa.values$LFD.uptake)*(1-psa.values$LFD.sens)
+      
+      # 0.003 and 0.0206 = high and low rolling 14-day average proportion of PCR tests coming back positive -> if a prevalence, does it matter if daily or fortnightly?
+      
+      psa.seed_freq.NPF <- 1/sum(psa.lambda*params$pop[[1]]$size)
+      psa.seed_freq.PF <- 1/sum(psa.lambda*params$pop[[2]]$size)
+      
+      # Imported infections
+      
+      params$pop[[1]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.NPF)), 0)
+      params$pop[[2]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.PF)), 0)
+      params$pop[[3]]$seed_times <- 365.25
+      for(i in nr_pops){params$pop[[i]]$dist_seed_ages <- c(rep(0,3), rep(1,13))}
+      
+      uptake <- psa.values$vac.uptake
+      
+      #### VACCINATION RATE - NEW PRISONERS/STAFF
+      new1 <- n_vacc_daily/(sum(params$pop[[1]]$size)*psa.values$staff_to*uptake)
+      new2 <- n_vacc_daily/(sum(params$pop[[2]]$size)*psa.values$staff_to*uptake)
+      new3 <- n_vacc_daily/(sum(params$pop[[3]]$size)*psa.values$b_rate*uptake)
+      
+      prop.pop1 <- sum(params$pop[[1]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
+      prop.pop2 <- sum(params$pop[[2]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
+      prop.pop3 <- sum(params$pop[[3]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
+      
+      vacc_vals7.pop1 <- c((n_vacc_daily-5)*prop.pop1*params$pop[[1]]$size/sum(params$pop[[1]]$size))
+      vacc_vals7.pop2 <- c((n_vacc_daily-5)*prop.pop2*params$pop[[2]]$size/sum(params$pop[[2]]$size))
+      vacc_vals7.pop3 <- c((n_vacc_daily-5)*prop.pop3*params$pop[[3]]$size/sum(params$pop[[3]]$size)) + 5*params$pop[[3]]$size/sum(params$pop[[3]]$size)
+      
+      new1.7 <- sum(vacc_vals7.pop1)/(sum(params$pop[[1]]$size)*psa.values$staff_to*uptake)
+      new2.7 <- sum(vacc_vals7.pop2)/(sum(params$pop[[2]]$size)*psa.values$staff_to*uptake)
+      new3.7 <- sum(vacc_vals7.pop3)/(sum(params$pop[[3]]$size)*psa.values$b_rate*uptake)
+      # Vacc short #
+      
+      if(exists("run")){rm(run)}
+      n <- 1 # number of runs = 1 (currently deterministic)
+      
+      dose_gap <- 7*12
+      
+      # scenarios
+      # (1) no vaccination
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule <- list()         # no scheduled changes to parameters
+      run1 <- cm_simulate(params, 1)
+      results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
+      rm(run1)
+      
+      # (2) Just non-prisoner facing (non-operational) staff
+      
+      ## Number of doses needed for this strategy:
+      scen2 <- sum(params$pop[[1]]$size)*uptake
+      ## Number of days needed to administer this number of doses
+      done2 <- scen2/n_vacc_daily
+      if(done2>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      
+      vacc_vals2 <- c(n_vacc_daily * params$pop[[1]]$size/sum(params$pop[[1]]$size))
+      
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule <- list() 
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = 0,
+          mode = "assign",
+          values = list(vacc_vals2, vacc_vals2/new1),
+          times = c(immune1,immune1+done2)),
+        list(
+          parameter = "v12",
+          pops = 0,
+          mode = "assign",
+          values = list(vacc_vals2),
+          times = c(immune2))
+      )
+      # Both first and second doses only administered for a short period required to vaccinate up to assumed uptake.
+      
+      run2 = cm_simulate(params, 1)
+      #  results_run2 = run2$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run2")
+      results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
+      rm(run2)
+      # (3) Just prisoner facing staff
+      
+      ## Number of doses needed for this strategy:
+      scen3 <- sum(params$pop[[2]]$size)*uptake
+      ## Number of days needed to administer this number of doses
+      done3 <- scen3/n_vacc_daily
+      if(done3>12*7){cat(red("Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      
+      vacc_vals3 <-   c(n_vacc_daily * params$pop[[2]]$size/sum(params$pop[[2]]$size))
+      # vacc_vals3 <- list
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v <- rep(0,16)
+        params$pop[[i]]$v12 <- rep(0,16)
+      }
+      params$schedule <- list() 
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = 1,
+          mode = "assign",
+          values = list(vacc_vals3, vacc_vals3/new2),
+          times = c(immune1, immune1+done3)),
+        list(
+          parameter = "v12",
+          pops = 1,
+          mode = "assign",
+          values = list(vacc_vals3),
+          times = c(immune2)))
+      
+      run3 = cm_simulate(params, 1)
+      #  results_run3 = run3$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run3")
+      results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
+      rm(run3)
+      gc()
+      
+      # (4) All prison staff
+      
+      ## Number of doses needed for this strategy:
+      scen4 <- sum(params$pop[[1]]$size+params$pop[[2]]$size)*uptake
+      ## Number of days needed to administer this number of doses
+      done4 <- scen4/n_vacc_daily
+      if(done4>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      prop.pop1 <- sum(params$pop[[1]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size)
+      prop.pop2 <- sum(params$pop[[2]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size)
+      
+      vacc_vals4.pop1 <- c(n_vacc_daily*prop.pop1*params$pop[[1]]$size/sum(params$pop[[1]]$size))
+      vacc_vals4.pop2 <- c(n_vacc_daily*prop.pop2*params$pop[[2]]$size/sum(params$pop[[2]]$size))
+      # vacc_vals4 <- list(c(rep(0,3), rep(1, 13)))
+      params$schedule <- list() 
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = c(0), # populations are from 0 to N-1
+          mode = "assign",
+          values = list(vacc_vals4.pop1, vacc_vals4.pop1/new1),
+          times = c(immune1, immune1+done4)),
+        list(
+          parameter = "v12",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals4.pop1),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(1), # populations are from 0 to N-1
+          mode = "assign",
+          values = list(vacc_vals4.pop2, vacc_vals4.pop2/new2),
+          times = c(immune1, immune1+done4)),
+        list(
+          parameter = "v12",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals4.pop2),
+          times = c(immune2)))
+      
+      
+      run4 = cm_simulate(params, 1)
+      # results_run4 = run4$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run4")
+      results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
+      rm(run4)
+      gc()
+      
+      # (5) prison population
+      
+      scen5 <- sum(params$pop[[3]]$size)*uptake
+      ## Number of days needed to administer this number of doses
+      done5 <- scen5/n_vacc_daily
+      
+      while((sum(params$pop[[3]]$size)*b_rate*done5 + sum(params$pop[[3]]$size))*0.9 > 20*done5){
+        done5 <- done5+1
+      }
+      if(done5>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      
+      ## Number of doses needed for this strategy:
+      params$schedule <- list() 
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      vacc_vals5 <- c(n_vacc_daily * params$pop[[3]]$size/sum(params$pop[[3]]$size))
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = 2,
+          mode = "assign",
+          values = list(vacc_vals5, vacc_vals5/new3),
+          times = c(immune1, immune1+done5)),
+        list(
+          parameter = "v12",
+          pops = 2,
+          mode = "assign",
+          values = list(vacc_vals5),
+          times = c(immune2)))
+      
+      run5 = cm_simulate(params, 1)
+      # results_run5 = run5$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run5")
+      results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
+      gc()
+      rm(run5)
+      
+      #6 Just vulnerable (over 50) population
+      
+      total.popn <-  sum(params$pop[[1]]$size[11:16]+params$pop[[2]]$size[11:16]+params$pop[[3]]$size[11:16])
+      ## Number of doses needed for this strategy:
+      scen6 <-total.popn*uptake
+      ## Number of days needed to administer this number of doses
+      done6 <- scen6/n_vacc_daily
+      ## Accounting for new arrivals over period of vaccine programme
+      while((sum(params$pop[[1]]$size[11:16])*staff_to*done6 + sum(params$pop[[2]]$size[11:16])*staff_to*done6 + sum(params$pop[[3]]$size[11:16])*b_rate*done6 + total.popn)*0.9 > 20*done6){
+        done6 <- done6+1
+      }
+      
+      
+      if(done6>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      prop.pop1 <- sum(params$pop[[1]]$size[11:16])/sum(params$pop[[1]]$size[11:16]+params$pop[[2]]$size[11:16]+params$pop[[3]]$size[11:16])
+      prop.pop2 <- sum(params$pop[[2]]$size[11:16])/sum(params$pop[[1]]$size[11:16]+params$pop[[2]]$size[11:16]+params$pop[[3]]$size[11:16])
+      prop.pop3 <- sum(params$pop[[3]]$size[11:16])/sum(params$pop[[1]]$size[11:16]+params$pop[[2]]$size[11:16]+params$pop[[3]]$size[11:16])
+      
+      
+      vacc_vals6.pop1 <-c(rep(0,10), n_vacc_daily*prop.pop1*params$pop[[1]]$size[11:16]/sum(params$pop[[1]]$size[11:16]))
+      vacc_vals6.pop2 <-c(rep(0,10), n_vacc_daily*prop.pop2*params$pop[[2]]$size[11:16]/sum(params$pop[[2]]$size[11:16]))
+      vacc_vals6.pop3 <-c(rep(0,10), n_vacc_daily*prop.pop3*params$pop[[3]]$size[11:16]/sum(params$pop[[3]]$size[11:16]))
+      
+      params$schedule <- list() 
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals6.pop1, vacc_vals6.pop1/new1),
+          times = c(immune1, immune1+done6)),
+        list(
+          parameter = "v12",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals6.pop1),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals6.pop2, vacc_vals6.pop2/new2),
+          times = c(immune1, immune1+done6)),
+        list(
+          parameter = "v12",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals6.pop2),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(2),
+          mode = "assign",
+          values = list(vacc_vals6.pop3, vacc_vals6.pop3/new3),
+          times = c(immune1, immune1+done6)),
+        list(
+          parameter = "v12",
+          pops = c(2),
+          mode = "assign",
+          values = list(vacc_vals6.pop3),
+          times = c(immune2)))
+      
+      run6 = cm_simulate(params, 1)
+      # results_run6 = run6$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run6")
+      results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
+      rm(run6)
+      gc()
+      
+      #7 All
+      
+      ## Number of doses needed for this strategy:
+      total.popn <- sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
+      scen7 <- total.popn*uptake
+      done7 <- scen7/n_vacc_daily
+      while((prisoner_pop*b_rate*done7 + 70*staff_to*done7 + 315*staff_to*done7 + total.popn)*0.9 > 20*done7){
+        done7 <- done7+1
+      }
+      
+      ## Number of days needed to administer this number of doses
+      
+      if(done7>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
+      
+      # vacc_vals7 <- list(c(rep(0,3), rep(1, 13)))
+      params$schedule <- list() 
+      for(i in 1:nr_pops){
+        params$pop[[i]]$v = rep(0, 16)
+        params$pop[[i]]$v12 = rep(0,16) # (re)set to no vaccines being administered
+      }
+      params$schedule = list(
+        list(
+          parameter = "v",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals7.pop1, vacc_vals7.pop1/new1.7),
+          times = c(immune1, immune1+done7)),
+        list(
+          parameter = "v12",
+          pops = c(0),
+          mode = "assign",
+          values = list(vacc_vals7.pop1),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals7.pop2, vacc_vals7.pop2/new2.7),
+          times = c(immune1, immune1+done7)),
+        list(
+          parameter = "v12",
+          pops = c(1),
+          mode = "assign",
+          values = list(vacc_vals7.pop2),
+          times = c(immune2)),
+        list(
+          parameter = "v",
+          pops = c(2),
+          mode = "assign",
+          values = list(vacc_vals7.pop3, vacc_vals7.pop3/new3.7),
+          times = c(immune1, immune1+done7)),
+        list(
+          parameter = "v12",
+          pops = c(2),
+          mode = "assign",
+          values = list(vacc_vals7.pop3),
+          times = c(immune2)))
+      
+      gc()
+      run7 = cm_simulate(params, 1)
+      # results_run7 = run7$dynamics[c(compartment == "cases_i"), .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run7")
+      results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "icu_p", "nonicu_p", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
+      rm(run7)
+      gc()
+      
+      # get all scenarios
+      
+      results_df = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>% dplyr::filter(compartment=="cases")
+      
+      # same for qalys 
+      
+      results_qalys = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>%
+        group_by(scenario_run, run, group, population, compartment) %>% summarise(total=sum(total))
+      
+      results_qalys <- results_qalys %>%
+        group_by(scenario_run, population, group, compartment) %>% 
+        summarise(total=mean(total)) %>% ungroup()
+      
+      results_dose = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>% dplyr::filter(compartment %in% c("onedose_i", "twodose_i"))
+      totaldose <- results_dose %>% group_by(scenario_run, group, population) %>% summarise(total=sum(total))
+      
+      results_qalys <- rbind(results_qalys, totaldose %>% mutate(compartment="aefi.minor"))
+      results_qalys <- rbind(results_qalys, totaldose %>% mutate(compartment="aefi.fatal"))
+      
+      results_qalys <- left_join(results_qalys, qalycalc, by=c("compartment", "group", "population")) %>% filter(compartment!=c("onedose_i", "twodose_i"))
+      results_qalys <- results_qalys %>% mutate(qaly.loss=total*qaly.value) %>% 
+        group_by(scenario_run, population) %>% 
+        summarise(qaly.loss=sum(qaly.loss)) %>% 
+        ungroup()
+      
+      
+      results_qalys <- rbind(results_qalys, results_qalys %>% group_by(scenario_run) %>% summarise(qaly.loss=sum(qaly.loss), population="(A-C) all prisoners and staff"))
+      
+      ## same for deaths
+      
+      results_deaths = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>% dplyr::filter(compartment=="death_o")
+      
+      ### END OF VACC SHORT ###
+      
+      results_df <- results_df %>% dplyr::filter(compartment=="cases") %>% 
+        mutate(run=k)
+      results_psa <- rbind(results_psa, results_df)
+      results_qalys <- results_qalys %>% mutate(run=k)
+      qaly_psa <- rbind(results_qalys, qaly_psa)
+      results_deaths <- results_deaths %>% mutate(run=k)
+      deaths_psa <- rbind(deaths_psa, results_deaths)
+      results_dose <- results_dose %>% mutate(run=k)
+      dose_psa <- rbind(dose_psa, results_dose)
+      rm(results_df)
+      rm(results_qalys)
+      rm(results_deaths)
+      rm(results_dose)
+    }
+    toc()
+    psa <- psa %>% mutate(run=1:n_psa)
+    dose.total <- dose_psa %>% filter(compartment=="twodose_i") %>% group_by(scenario_run, run) %>% summarise(vacc.count=sum(total))
+    case.staff <- results_psa %>% group_by(scenario_run, run, population) %>% summarise(total=sum(total)) %>% filter(population=="(A) non-prisoner-facing staff" | population=="(B) prisoner-facing staff")
+    case.prisoners <- results_psa %>% group_by(scenario_run, run, population) %>% summarise(total=sum(total)) %>% filter(population=="(C) prisoners")
+    qaly.staff <- qaly_psa %>% group_by(scenario_run, run, population) %>% summarise(total=sum(qaly.loss)) %>% filter(population=="(A) non-prisoner-facing staff" | population=="(B) prisoner-facing staff")
+    qaly.prisoners <- qaly_psa %>% group_by(scenario_run, run, population) %>% summarise(total=sum(qaly.loss)) %>% filter(population=="(C) prisoners")
+    death.staff <- deaths_psa %>% group_by(scenario_run, run, population) %>% summarise(total=sum(total)) %>% filter(population=="(A) non-prisoner-facing staff" | population=="(B) prisoner-facing staff")
+    death.prisoners <- deaths_psa %>% group_by(scenario_run, run, population) %>% summarise(total=sum(total)) %>% filter(population=="(C) prisoners")
+    return(list(case.staff, qaly.staff, death.staff, case.prisoners,qaly.prisoners, death.prisoners, dose.total))}
