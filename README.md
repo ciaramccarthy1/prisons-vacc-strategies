@@ -7,20 +7,22 @@ This involved adapting CovidM, a transmission-dynamic model for SARS-CoV-2 trans
 ### Quick start guide
 1. Install all required packages using `R/packages`. The version of CovidM used and instructions for installation can be found in the `covidm_for_fitting` folder. 
 
-2. Set file paths within set-up script
+2. Set file paths within set-up-upgrading script.
  cm_path defines where covidm is stored e.g.
  ```{r eval=FALSE}
  cm_path = "C:/Users/CiaraMcCarthy/covidm-twodose/covidm_for_fitting/"
  ```
- pris_path defines where the contents of the prisons-july2021 Github directory are stored e.g.
+ pris_path defines where the contents of the prisons-vacc-strategies Github directory are stored e.g.
  ```{r eval=FALSE}
- pris_path <- "~/prisons-tidy/Prisons-july2021"
+ pris_path <- "~/prisons-vacc-strategies""
  ```
+ save_path defines where the generated figures will be saved.
+ 
 3. Run `scripts/set-up-upgrading.R`. This loads all dependencies, including covidm. It sources the following other scripts in the repository:
       * `R/functions_may21.R` - required functions
       * `R/sensitivity.R` - assigns values for vaccine- and prison-related parameters; scales susceptibility to achieve desired R0.
 
-4. `scripts/final-plots.R` includes code for all plots in the order that they appear in the manuscript. The script sources the following other scripts in the repository:
+4. Code for all plots is included in the scripts folder. These scripts sources the following other scripts in the repository:
       * `scripts/vacc-scenarios.R` - runs model for each of the seven vaccination scenarios
       * `scripts/psa_define.R` - defines values for all parameters varied in probabilistic sensitivity analysis, based on values generated from Latin hypercube sampling
       * `scripts/vacc_short.R` - shortened version of `scripts/vacc-scenarios.R` script
