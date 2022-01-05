@@ -39,13 +39,13 @@ case.stack.plot <- ggplot(cases_stack, aes(x = scenario, y = total, fill=scenari
   labs(x="Vaccination scenario", y="Clinical cases over one year", fill="Scenario", alpha="Population") +
   theme_bw() +
   scale_color_OkabeIto() +  
-  theme(text=element_text(size=10)) +
+  theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete=TRUE) +
   geom_text(aes(x = scenario, y = mean.bar,
                 label = ifelse(total.value==0,
                                paste0(format(total.value, nsmall = 1),"%"),
                                paste0("-",format(total.value, nsmall = 1),"%")) ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2,lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=overall.base), linetype="dashed", alpha=0.5, colour = "red") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   guides(
@@ -73,13 +73,13 @@ deaths.stack.plot <- ggplot(deaths_stack, aes(x = scenario, y = total, fill = sc
   coord_cartesian(ylim = c(0, 15)) +
   labs(x="Vaccination scenario", y="Deaths over one year", legend.title="Scenario") +
   theme_bw() +
-  theme(text=element_text(size=10)) +
+  theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete=TRUE) + 
   geom_text(aes(x = scenario, y = mean.bar,
                 label = ifelse(total.value==0,
                                paste0(format(total.value, nsmall = 1),"%"),
                                paste0("-",format(total.value, nsmall = 1),"%")) ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=overall.base), linetype="dashed", alpha=0.5, colour = "red") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   guides(
@@ -110,13 +110,13 @@ qaly.stack.plot <- ggplot(qaly_stack, aes(x = scenario, y = qaly.loss, fill = sc
   labs(x="Vaccination scenario", y="QALYs lost over one year", legend.title="Scenario") +
   coord_cartesian(ylim = c(0, 200)) +
   theme_bw() +
-  theme(text=element_text(size=10)) +
+  theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete = TRUE) + 
   geom_text(aes(x = scenario, y = mean.bar,
                 label = ifelse(total.value==0,
                                paste0(format(total.value, nsmall = 1),"%"),
                                paste0("-",format(total.value, nsmall = 1),"%")) ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=overall.base), linetype="dashed", alpha=0.5, colour = "red") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   guides(
@@ -168,13 +168,13 @@ case.stack.plot <- ggplot(cases_stack, aes(x = scenario, y = total, fill=scenari
   labs(x="Vaccination scenario", y="Clinical cases over one year", fill="Scenario", alpha="Population") +
   theme_bw() +
   scale_color_OkabeIto() +  
-  theme(text=element_text(size=10)) +
+  theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete=TRUE) +
   geom_text(aes(x = scenario, y = mean.bar,
                 label = ifelse(total.value==0,
                                paste0(format(total.value, nsmall = 1),"%"),
                                paste0("-",format(total.value, nsmall = 1),"%")) ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=overall.base), linetype="dashed", alpha=0.5, colour = "red") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   guides(
@@ -202,13 +202,13 @@ deaths.stack.plot <- ggplot(deaths_stack, aes(x = scenario, y = total, fill = sc
   coord_cartesian(ylim = c(0, 15)) +
   labs(x="Vaccination scenario", y="Deaths over one year", legend.title="Scenario") +
   theme_bw() +
-  theme(text=element_text(size=10)) +
+  theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete=TRUE) + 
   geom_text(aes(x = scenario, y = mean.bar,
                 label = ifelse(total.value==0,
                                paste0(format(total.value, nsmall = 1),"%"),
                                paste0("-",format(total.value, nsmall = 1),"%")) ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=overall.base), linetype="dashed", alpha=0.5, colour = "red") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   guides(
@@ -239,13 +239,13 @@ qaly.stack.plot <- ggplot(qaly_stack, aes(x = scenario, y = qaly.loss, fill = sc
   labs(x="Vaccination scenario", y="QALYs lost over one year", legend.title="Scenario") +
   coord_cartesian(ylim = c(0, 200)) +
   theme_bw() +
-  theme(text=element_text(size=10)) +
+  theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete = TRUE) + 
   geom_text(aes(x = scenario, y = mean.bar,
                 label = ifelse(total.value==0,
                                paste0(format(total.value, nsmall = 1),"%"),
                                paste0("-",format(total.value, nsmall = 1),"%")) ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=overall.base), linetype="dashed", alpha=0.5, colour = "red") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   guides(
@@ -264,4 +264,4 @@ legend_7 <- get_legend(case.stack.plot +
                          theme(legend.box.margin = margin(0, 0, 0, 6)))
 
 fig.mix <- plot_grid(scen1, scen2, legend_1, ncol=3, rel_widths = c(1,1,0.75), labels=c("1", "2"), vjust=1, label_size=10)
-ggsave(paste0(save_path,"fig3.png"), fig.mix, width=190, height=210, units="mm")
+ggsave(paste0(save_path,"fig3.png"), fig.mix, width=170, height=190, units="mm")

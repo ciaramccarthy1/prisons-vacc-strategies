@@ -41,13 +41,13 @@ case.stack.plot <- ggplot(cases_stack, aes(x = scenario, y = total, fill=scenari
   labs(x="Vaccination scenario", y="Clinical cases over one year", fill="Scenario", alpha="Population") +
   theme_bw() +
   scale_color_OkabeIto() +  
-  theme(text=element_text(size=10)) +
+  theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete=TRUE) +
   geom_text(aes(x = scenario, y = mean.bar,
                 label = ifelse(total.value==0,
                                paste0(format(total.value, nsmall = 1),"%"),
                                paste0("-",format(total.value, nsmall = 1),"%")) ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=overall.base), linetype="dashed", alpha=0.5, colour = "red") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   guides(
@@ -75,13 +75,13 @@ deaths.stack.plot <- ggplot(deaths_stack, aes(x = scenario, y = total, fill = sc
   coord_cartesian(ylim = c(0, 15)) +
   labs(x="Vaccination scenario", y="Deaths over one year", legend.title="Scenario") +
   theme_bw() +
-  theme(text=element_text(size=10)) +
+  theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete=TRUE) + 
   geom_text(aes(x = scenario, y = mean.bar,
                 label = ifelse(total.value==0,
                                paste0(format(total.value, nsmall = 1),"%"),
                                paste0("-",format(total.value, nsmall = 1),"%")) ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=overall.base), linetype="dashed", alpha=0.5, colour = "red") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   guides(
@@ -112,13 +112,13 @@ qaly.stack.plot <- ggplot(qaly_stack, aes(x = scenario, y = qaly.loss, fill = sc
   labs(x="Vaccination scenario", y="QALYs lost over one year", legend.title="Scenario") +
   coord_cartesian(ylim = c(0, 200)) +
   theme_bw() +
-  theme(text=element_text(size=10)) +
+  theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete = TRUE) + 
   geom_text(aes(x = scenario, y = mean.bar,
                 label = ifelse(total.value==0,
                                paste0(format(total.value, nsmall = 1),"%"),
                                paste0("-",format(total.value, nsmall = 1),"%")) ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=overall.base), linetype="dashed", alpha=0.5, colour = "red") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   guides(
@@ -139,9 +139,6 @@ legend_1 <- get_legend(case.stack.plot +
 )
 
 fig1 <- plot_grid(basecase, legend_1, ncol = 2, rel_widths = c(1, 0.25))
-
-# ggsave("fig1.png", fig1, width=800, height=200, units="mm")
-
 
 ###################################
 ##### DOSES WITH ERROR BARS #######
@@ -244,16 +241,16 @@ dose.calc <- labelforplots(dose.calc)
 
 case <- ggplot(dose.calc, aes(x=scenario_nr, y=mean.case, fill=scenario)) + geom_col(alpha = 0.7) + 
   xlab("Vaccination scenario") + ylab("Vaccinations per case averted") + scale_fill_viridis(discrete=TRUE, name="Scenario") + theme_bw() + coord_cartesian(ylim = c(0, 20)) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + theme(text=element_text(size=10)) + geom_errorbar(mapping=aes(ymin=lower.case, ymax=upper.case), width=0.2)
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + theme(text=element_text(size=8.5)) + geom_errorbar(mapping=aes(ymin=lower.case, ymax=upper.case), width=0.2)
 
 death <- ggplot(dose.calc, aes(x=scenario_nr, y=mean.death, fill=scenario)) + geom_col(alpha = 0.7) + 
   xlab("Vaccination scenario") + ylab("Vaccinations per death averted") + scale_fill_viridis(discrete=TRUE, name="Scenario") + theme_bw() + coord_cartesian(ylim = c(0, 2000)) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + theme(text=element_text(size=10)) + geom_errorbar(mapping=aes(ymin=lower.death, ymax=upper.death), width=0.2)
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + theme(text=element_text(size=8.5)) + geom_errorbar(mapping=aes(ymin=lower.death, ymax=upper.death), width=0.2)
 
 qaly <- ggplot(dose.calc, aes(x=scenario_nr, y=mean.qaly, fill=scenario)) + geom_col(alpha = 0.7) + 
   xlab("Vaccination scenario") + ylab("Vaccinations per QALY loss averted") + 
   scale_fill_viridis(discrete=TRUE, name="Scenario") + theme_bw() + coord_cartesian(ylim = c(0, 250)) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + theme(text=element_text(size=10)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + theme(text=element_text(size=8.5)) +
   geom_errorbar(mapping=aes(ymin=lower.qaly, ymax=upper.qaly), width=0.2)
 
 dose.per.outcome <- plot_grid(case + theme(legend.position = "none"),
@@ -261,5 +258,5 @@ dose.per.outcome <- plot_grid(case + theme(legend.position = "none"),
                               death + theme(legend.position = "none"), ncol=1, labels=c("D", "E", "F"), vjust=1, label_size=10)
 
 fig1a <- plot_grid(basecase, dose.per.outcome, legend_1, ncol = 3, rel_widths = c(1, 1, 0.75))
-ggsave(paste0(save_path,"fig1new.png"), fig1a, width=190, height=210, units="mm")
+ggsave(paste0(save_path,"fig1.png"), fig1a, width=170, height=190, units="mm")
 

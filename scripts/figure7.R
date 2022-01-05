@@ -58,8 +58,9 @@ fig.npis <- ggplot() +
   geom_ribbon(case_npis, mapping=aes(x=t, ymin=lower, ymax=upper, fill=NPIs, alpha=NPIs), color=NA) +
   facet_wrap(~scenario, ncol=2) + scale_color_manual(values =c("#0072B2","#E69F00")) + scale_fill_manual(values=c("#0072B2","#E69F00")) +
   scale_alpha_discrete(range=c(0.4,0.2)) + 
-  labs(x="Time in days", y="Incidence of new clinical cases") +
-  theme_bw() 
+  theme_bw() + theme(text=element_text(size=8)) +
+  labs(x="Time in days", y="Incidence of new clinical cases")
+ 
 
-ggsave(paste0(save_path,"fig7.png"), fig.npis, width=300, height=210, units="mm")
+ggsave(paste0(save_path,"fig7.png"), fig.npis, width=170, height=150, units="mm")
 

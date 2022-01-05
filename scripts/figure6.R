@@ -121,7 +121,7 @@ sens <- plot_grid(prisoner_plot + theme(legend.position = "none"),
 legend_sens <- get_legend(prisoner_plot + 
                             theme(legend.position = "right", text=element_text(size=8)))
 
-fig.sens <- plot_grid(sens, legend_sens, ncol = 2, rel_widths = c(1, 0.3))
+fig.sens <- plot_grid(sens, legend_sens, ncol = 2, rel_widths = c(1, 0.4))
 
-ggsave(paste0(save_path,"fig6.png"), fig.sens, width=190, height=120, units="mm")
+ggsave(paste0(save_path,"fig6.png"), fig.sens, width=170, height=110, units="mm")
 print(fig.sens)

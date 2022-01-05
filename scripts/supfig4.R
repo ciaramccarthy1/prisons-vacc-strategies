@@ -83,11 +83,9 @@ fig11b <- ggplot(cases_fig11) +
 
 fig11c <- ggplot(cases_fig11) +
   geom_boxplot(aes(x=scenario_nr, y=total, fill=scenario), outlier.shape=NA, alpha=0.7) + facet_wrap(~wane) + theme_bw() +
-  scale_fill_viridis(discrete=TRUE, name="Scenario") + labs(x="Scenario", y="Sum of clinical cases over five years") + theme(text=element_text(size=7))
+  scale_fill_viridis(discrete=TRUE, name="Scenario") + labs(x="Scenario", y="Sum of clinical cases over five years") + theme(text=element_text(size=6))
 
-ggsave("fig11a.png", fig11a, width=300, height=210, units="mm")
-ggsave("fig11b.png", fig11b, width=180, height=120, units="mm")
-ggsave(paste0(save_path,"supfig4new.png"),fig11c, width=190, height=55, units="mm")
+ggsave(paste0(save_path,"supfig4.png"),fig11c, width=170, height=50, units="mm")
 
 # Back to base case
 target_R0 <- 5

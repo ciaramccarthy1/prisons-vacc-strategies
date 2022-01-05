@@ -37,7 +37,7 @@ qaly_prcc <- labelforplots(qaly_prcc)
 
 parm.labs <- c("Duration of vaccine immunity", "Duration of natural immunity", "Staff turnover rate",
                "Prisoner turnover rate", "QALY loss - symptomatic",
-               "QALY loss - non-ICU hospitalisation",
+               "QALY loss - non-ICU",
                "QALY loss - ICU",
                "VE against infection - 1st dose",
                "VE against infection - 2nd dose",
@@ -59,9 +59,9 @@ names(parm.labs) <- param.qaly
 
 fig_prcc_qaly <- ggplot(qaly_prcc, aes(x=scenario_nr, y=est, fill=scenario)) + geom_col() + 
   scale_fill_viridis(discrete=TRUE) +
-  theme_bw() + theme(text=element_text(size=7.5)) +
+  theme_bw() + theme(text=element_text(size=7)) +
   labs(x="Scenario", y="PRCC", fill="Scenario") + 
   geom_errorbar(mapping=aes(ymin=lower, ymax=upper), width=0.2) + 
   facet_wrap(~parameter, labeller=labeller(parameter=parm.labs))
 
-ggsave(paste0(save_path,"supfig2new.png"), fig_prcc_qaly, width=190, height=170, units="mm")
+ggsave(paste0(save_path,"supfig2.png"), fig_prcc_qaly, width=170, height=150, units="mm")

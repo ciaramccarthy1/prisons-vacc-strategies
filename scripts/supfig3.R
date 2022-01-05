@@ -38,10 +38,10 @@ fig10 <- ggplot(cases_fig10, aes(x = t, y = mean.total, color=scenario)) +
   geom_line() + labs(x="Time in years", y="Incidence of new clinical cases") +
   geom_ribbon(aes(ymin=lower, ymax=upper, fill=scenario), alpha=0.3, color=NA) +
   facet_wrap(~scenario, ncol=2) +
-  theme_bw() + theme(text=element_text(size=7)) +
+  theme_bw() + theme(text=element_text(size=8)) +
   labs(color="Scenario", fill="Scenario") + scale_fill_viridis(discrete=TRUE) + scale_colour_viridis(discrete=TRUE)
 
-ggsave(paste0(save_path,"supfig3.png"), fig10, width=190, height=130, units="mm")
+ggsave(paste0(save_path,"supfig3.png"), fig10, width=170, height=150, units="mm")
 
 # Back to base case
 target_R0 <- 5

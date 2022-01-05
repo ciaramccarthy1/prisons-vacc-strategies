@@ -26,7 +26,8 @@ fig5 <- ggplot(cases_fig5, aes(x = t, y = median.total, color=scenario)) +
   geom_line() + labs(x="Time in days", y="Incidence of new clinical cases") +
   geom_ribbon(aes(ymin=lower, ymax=upper, fill=scenario), alpha=0.3, color=NA) +
   facet_wrap(~scenario, ncol=2) +
-  theme_bw() + theme(text=element_text(size=7)) +
+  theme_bw() + theme(text=element_text(size=8)) +
   labs(color="Scenario", fill="Scenario") + scale_fill_viridis(discrete=TRUE) + scale_colour_viridis(discrete=TRUE)
 
-ggsave(paste0(save_path,"fig2.png"), fig5, width=190, height=130, units="mm")
+ggsave(paste0(save_path,"fig2.png"), fig5, width=170, height=150, units="mm")
+

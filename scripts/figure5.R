@@ -59,9 +59,9 @@ names(parm.labs) <- param.test
 
 fig_prcc <- ggplot(results_prcc, aes(x=scenario_nr, y=est, fill=scenario)) + geom_col() + 
   scale_fill_viridis(discrete=TRUE) +
-  theme_bw() + theme(text=element_text(size=7.5))+
+  theme_bw() + theme(text=element_text(size=7))+
   labs(x="Scenario", y="PRCC", fill="Scenario") + 
   geom_errorbar(mapping=aes(ymin=lower, ymax=upper), width=0.2) + 
   facet_wrap(~parameter, labeller=labeller(parameter=parm.labs))
 
-ggsave(paste0(save_path,"fig5.png"), fig_prcc, width=190, height=170, units="mm")
+ggsave(paste0(save_path,"fig5.png"), fig_prcc, width=170, height=150, units="mm")

@@ -26,14 +26,14 @@ case_bar <- ggplot(cases_facet, aes(x = scenario, y = total, fill = scenario)) +
   facet_wrap(~population, ncol=2, scales = "free") +
   scale_x_discrete(labels=unique(cases_facet$scenario_nr)) +
   labs(x="Vaccination scenario", y="Clinical cases over one year", fill="Scenario") +
-  theme_bw()+ theme(text = element_text(size = 8)) +
+  theme_bw()+ theme(text = element_text(size = 8.5)) +
   scale_fill_viridis(discrete=T) + 
   geom_text(aes(x = scenario, y = total,
                 label = ifelse(value==0,
                                paste0(format(value, nsmall = 1),"%"),
                                ifelse(value<0, paste0(format(value*-1, nsmall = 1),"%"),
                                       paste0("-",format(value, nsmall = 1),"%")))  ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2.5, lineheight = 0.8, colour = "black") +  geom_hline(aes(yintercept=total_base), linetype="dashed", alpha=0.5, colour = "red") 
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2, lineheight = 0.8, colour = "black") +  geom_hline(aes(yintercept=total_base), linetype="dashed", alpha=0.5, colour = "red") 
 
 ## DEATHS ##
 
@@ -53,14 +53,14 @@ death_bar <- ggplot(deaths_facet, aes(x = scenario, y = total, fill = scenario))
   facet_wrap(~population, ncol=2, scales = "free") +
   scale_x_discrete(labels=unique(deaths_facet$scenario_nr)) +
   labs(x="Vaccination scenario", y="Deaths over one year", fill="Scenario") +
-  theme_bw()+ theme(text = element_text(size = 8)) +
+  theme_bw()+ theme(text = element_text(size = 8.5)) +
   scale_fill_viridis(discrete=T) + 
   geom_text(aes(x = scenario, y = total,
                 label = ifelse(value==0,
                                paste0(format(value, nsmall = 1),"%"),
                                ifelse(value<0, paste0(format(value*-1, nsmall = 1),"%"),
                                       paste0("-",format(value, nsmall = 1),"%")))  ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=total_base), linetype="dashed", alpha=0.5, colour = "red")
 
 # QALYS ##
@@ -83,16 +83,16 @@ qaly_bar <- ggplot(qalys_facet, aes(x = scenario, y = qaly.loss, fill = scenario
   scale_x_discrete(labels=unique(qalys_facet$scenario_nr)) +
   labs(x="Vaccination scenario", y="QALYs lost over one year", fill="Scenario") +
   scale_fill_viridis(discrete=T) + 
-  theme_bw()+ theme(text = element_text(size = 8)) +
+  theme_bw()+ theme(text = element_text(size = 8.5)) +
   geom_text(aes(x = scenario, y = qaly.loss,
                 label = ifelse(value==0,
                                paste0(format(value, nsmall = 1),"%"),
                                ifelse(value<0, paste0(format(value*-1, nsmall = 1),"%"),
                                       paste0("-",format(value, nsmall = 1),"%")))  ),
-            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2.5, lineheight = 0.8, colour = "black") +
+            angle  = 0, vjust  = -0.25, hjust  = 0.5, size   = 2, lineheight = 0.8, colour = "black") +
   geom_hline(aes(yintercept=total_base), linetype="dashed", alpha=0.5, colour = "red")
 
-ggsave(paste0(save_path,"supfig5.png"), case_bar, width=190, height=140, units="mm")
-ggsave(paste0(save_path,"supfig6.png"), qaly_bar, width=190, height=140, units="mm")
-ggsave(paste0(save_path,"supfig7.png"), death_bar, width=190, height=140, units="mm")
+ggsave(paste0(save_path,"supfig5.png"), case_bar, width=170, height=125, units="mm")
+ggsave(paste0(save_path,"supfig6.png"), qaly_bar, width=170, height=125, units="mm")
+ggsave(paste0(save_path,"supfig7.png"), death_bar, width=170, height=125, units="mm")
 
