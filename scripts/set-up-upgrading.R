@@ -31,7 +31,7 @@ library(dplyr)
 library(Rcpp)
 
 # load epi model (covidm)
-cm_path = "C:/Users/CiaraMcCarthy/covidm-twodose/covidm_for_fitting/"
+cm_path = "C:/Users/CiaraMcCarthy/Documents/prisons-vacc-strategies/covidm_for_fitting/"
 cm_force_rebuild = T;
 cm_build_verbose = T;
 cm_version = 2;
