@@ -39,8 +39,8 @@ psa.simul <- function(n_psa, psa){
     ## QALYs ##
     
     qalycalc$qaly.value[qalycalc$compartment=="cases"] <- psa.values$qaly.sym
-    qalycalc$qaly.value[qalycalc$compartment=="to_icu_i"] <- psa.values$qaly.icu
-    qalycalc$qaly.value[qalycalc$compartment=="to_nonicu_i"] <- psa.values$qaly.nonicu
+    qalycalc$qaly.value[qalycalc$compartment=="icu_i"] <- psa.values$qaly.icu
+    qalycalc$qaly.value[qalycalc$compartment=="nonicu_i"] <- psa.values$qaly.nonicu
     
     
     ## R0 - scaling ##
@@ -75,9 +75,9 @@ psa.simul <- function(n_psa, psa){
     
     # Imported infections
     
-    params$pop[[1]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.NPF)), 0)
-    params$pop[[2]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.PF)), 0)
-    params$pop[[3]]$seed_times <- 365.25
+    params$pop[[1]]$seed_times <- round(c(seq(from=delay, to=delay+round(365.25*timehorizon), by=psa.seed_freq.NPF)), 0)
+    params$pop[[2]]$seed_times <- round(c(seq(from=delay, to=delay+round(365.25*timehorizon), by=psa.seed_freq.PF)), 0)
+    params$pop[[3]]$seed_times <- delay
     for(i in nr_pops){params$pop[[i]]$dist_seed_ages <- c(rep(0,3), rep(1,13))}
     
     uptake <- psa.values$vac.uptake
@@ -113,7 +113,7 @@ psa.simul <- function(n_psa, psa){
     }
     params$schedule <- list()         # no scheduled changes to parameters
     run1 <- cm_simulate(params, 1)
-    results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
+    results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
     rm(run1)
     
     # (2) Just non-prisoner facing (non-operational) staff
@@ -146,14 +146,14 @@ psa.simul <- function(n_psa, psa){
         parameter = "v12",
         pops = 0,
         mode = "assign",
-        values = list(vacc_vals2),
-        times = c(immune2))
+        values = list(vacc_vals2, new1),
+        times = c(immune2, immune2+done2))
     )
     # Both first and second doses only administered for a short period required to vaccinate up to assumed uptake.
     
     run2 = cm_simulate(params, 1)
     #  results_run2 = run2$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run2")
-    results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
+    results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
     rm(run2)
     # (3) Just prisoner facing staff
     
@@ -185,12 +185,12 @@ psa.simul <- function(n_psa, psa){
         parameter = "v12",
         pops = 1,
         mode = "assign",
-        values = list(vacc_vals3),
-        times = c(immune2)))
+        values = list(vacc_vals3, new2),
+        times = c(immune2, immune2+done3)))
     
     run3 = cm_simulate(params, 1)
     #  results_run3 = run3$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run3")
-    results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
+    results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
     rm(run3)
     gc()
     
@@ -228,8 +228,8 @@ psa.simul <- function(n_psa, psa){
         parameter = "v12",
         pops = c(0),
         mode = "assign",
-        values = list(vacc_vals4.pop1),
-        times = c(immune2)),
+        values = list(vacc_vals4.pop1, new1),
+        times = c(immune2, immune2+done4)),
       list(
         parameter = "v",
         pops = c(1), # populations are from 0 to N-1
@@ -240,13 +240,13 @@ psa.simul <- function(n_psa, psa){
         parameter = "v12",
         pops = c(1),
         mode = "assign",
-        values = list(vacc_vals4.pop2),
-        times = c(immune2)))
+        values = list(vacc_vals4.pop2, new2),
+        times = c(immune2, immune2+done4)))
     
     
     run4 = cm_simulate(params, 1)
     # results_run4 = run4$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run4")
-    results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
+    results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
     rm(run4)
     gc()
     
@@ -279,12 +279,12 @@ psa.simul <- function(n_psa, psa){
         parameter = "v12",
         pops = 2,
         mode = "assign",
-        values = list(vacc_vals5),
-        times = c(immune2)))
+        values = list(vacc_vals5, new3),
+        times = c(immune2, immune2+done5)))
     
     run5 = cm_simulate(params, 1)
     # results_run5 = run5$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run5")
-    results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
+    results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
     gc()
     rm(run5)
     
@@ -322,42 +322,42 @@ psa.simul <- function(n_psa, psa){
         parameter = "v",
         pops = c(0),
         mode = "assign",
-        values = list(vacc_vals6.pop1, new1),
+        values = list(vacc_vals6.pop1,  c(rep(0,10), new1[11:16])),
         times = c(immune1, immune1+done6)),
       list(
         parameter = "v12",
         pops = c(0),
         mode = "assign",
-        values = list(vacc_vals6.pop1),
-        times = c(immune2)),
+        values = list(vacc_vals6.pop1,  c(rep(0,10), new1[11:16])),
+        times = c(immune2, immune2+done6)),
       list(
         parameter = "v",
         pops = c(1),
         mode = "assign",
-        values = list(vacc_vals6.pop2, new2),
+        values = list(vacc_vals6.pop2,  c(rep(0,10), new2[11:16])),
         times = c(immune1, immune1+done6)),
       list(
         parameter = "v12",
         pops = c(1),
         mode = "assign",
-        values = list(vacc_vals6.pop2),
-        times = c(immune2)),
+        values = list(vacc_vals6.pop2,  c(rep(0,10), new2[11:16])),
+        times = c(immune2, immune2+done6)),
       list(
         parameter = "v",
         pops = c(2),
         mode = "assign",
-        values = list(vacc_vals6.pop3, new3),
+        values = list(vacc_vals6.pop3,  c(rep(0,10), new3[11:16])),
         times = c(immune1, immune1+done6)),
       list(
         parameter = "v12",
         pops = c(2),
         mode = "assign",
-        values = list(vacc_vals6.pop3),
-        times = c(immune2)))
+        values = list(vacc_vals6.pop3,  c(rep(0,10), new3[11:16])),
+        times = c(immune2, immune2+done6)))
     
     run6 = cm_simulate(params, 1)
     # results_run6 = run6$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run6")
-    results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
+    results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
     rm(run6)
     gc()
     
@@ -393,8 +393,8 @@ psa.simul <- function(n_psa, psa){
         parameter = "v12",
         pops = c(0),
         mode = "assign",
-        values = list(vacc_vals7.pop1),
-        times = c(immune2)),
+        values = list(vacc_vals7.pop1, new1),
+        times = c(immune2, immune2+done7)),
       list(
         parameter = "v",
         pops = c(1),
@@ -405,8 +405,8 @@ psa.simul <- function(n_psa, psa){
         parameter = "v12",
         pops = c(1),
         mode = "assign",
-        values = list(vacc_vals7.pop2),
-        times = c(immune2)),
+        values = list(vacc_vals7.pop2, new2),
+        times = c(immune2, immune2+done7)),
       list(
         parameter = "v",
         pops = c(2),
@@ -417,13 +417,13 @@ psa.simul <- function(n_psa, psa){
         parameter = "v12",
         pops = c(2),
         mode = "assign",
-        values = list(vacc_vals7.pop3),
-        times = c(immune2)))
+        values = list(vacc_vals7.pop3, new3),
+        times = c(immune2, immune2+done7)))
     
     gc()
     run7 = cm_simulate(params, 1)
     # results_run7 = run7$dynamics[c(compartment == "cases_i"), .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run7")
-    results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
+    results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
     rm(run7)
     gc()
     

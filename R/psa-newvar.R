@@ -46,8 +46,8 @@ psa_newvar <- function(n_psa, psa){
     ## QALYs ##
     
     qalycalc$qaly.value[qalycalc$compartment=="cases"] <- psa.values$qaly.sym
-    qalycalc$qaly.value[qalycalc$compartment=="to_icu_i"] <- psa.values$qaly.icu
-    qalycalc$qaly.value[qalycalc$compartment=="to_nonicu_i"] <- psa.values$qaly.nonicu
+    qalycalc$qaly.value[qalycalc$compartment=="icu_i"] <- psa.values$qaly.icu
+    qalycalc$qaly.value[qalycalc$compartment=="nonicu_i"] <- psa.values$qaly.nonicu
     
     
     ## R0 - scaling ##
@@ -128,7 +128,7 @@ psa_newvar <- function(n_psa, psa){
      )
     )
     run1 <- cm_simulate(params, 1)
-    results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
+    results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
     rm(run1)
     
     # (2) Just non-prisoner facing (non-operational) staff
@@ -175,7 +175,7 @@ psa_newvar <- function(n_psa, psa){
     
     run2 = cm_simulate(params, 1)
     #  results_run2 = run2$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run2")
-    results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
+    results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
     rm(run2)
     # (3) Just prisoner facing staff
     
@@ -219,7 +219,7 @@ psa_newvar <- function(n_psa, psa){
     
     run3 = cm_simulate(params, 1)
     #  results_run3 = run3$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run3")
-    results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
+    results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
     rm(run3)
     gc()
     
@@ -282,7 +282,7 @@ psa_newvar <- function(n_psa, psa){
     
     run4 = cm_simulate(params, 1)
     # results_run4 = run4$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run4")
-    results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
+    results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
     rm(run4)
     gc()
     
@@ -326,7 +326,7 @@ psa_newvar <- function(n_psa, psa){
     
     run5 = cm_simulate(params, 1)
     # results_run5 = run5$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run5")
-    results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
+    results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
     gc()
     rm(run5)
     
@@ -405,7 +405,7 @@ psa_newvar <- function(n_psa, psa){
     
     run6 = cm_simulate(params, 1)
     # results_run6 = run6$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run6")
-    results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
+    results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
     rm(run6)
     gc()
     
@@ -477,7 +477,7 @@ psa_newvar <- function(n_psa, psa){
     gc()
     run7 = cm_simulate(params, 1)
     # results_run7 = run7$dynamics[c(compartment == "cases_i"), .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run7")
-    results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
+    results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
     rm(run7)
     gc()
     

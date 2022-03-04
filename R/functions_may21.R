@@ -5,6 +5,16 @@ VEdis <- function(x, given=0){
   ifelse(given>x, 0, (x-given)/(1-given))
 }
 
+# Changing population names
+
+popnchange <- function(figdata){
+  figdata$population <- as.character(figdata$population)
+  figdata[figdata=="(A) non-prisoner-facing staff"] <- "(A) staff group 1"
+  figdata[figdata=="(B) prisoner-facing staff"] <- "(B) staff group 2"
+  figdata[figdata=="(C) prisoners"] <- "(C) people who are incarcerated"
+  return(figdata)
+}
+
 # binary lockdown function
 
 control_lockdown = function(
@@ -123,12 +133,12 @@ lognorm_mom <- function(mean,sd){
   
 # AEFI function
 
-  aefi.func <- function(scenario_run, popn){
-    vacc_vector <- if(exists(paste0("vacc_vals", scenario_run, ".pop", popn))) get(paste0("vacc_vals", scenario_run, ".pop", popn)) else c(rep(0,16))
-    vacc_period <- if(exists(paste0("done", scenario_run))) get(paste0("done", scenario_run)) else 1
-    totaldoses <- (vacc_vector*vacc_period + (vacc_vector/7)*(timehorizon+delay-vacc_period-28)) + (vacc_vector*vacc_period + (vacc_vector/7)*(timehorizon+delay-vacc_period-((7*12)+14)))
-    return(totaldoses)
-  }
+#  aefi.func <- function(scenario_run, popn){
+#    vacc_vector <- if(exists(paste0("vacc_vals", scenario_run, ".pop", popn))) get(paste0("vacc_vals", scenario_run, ".pop", popn)) else c(rep(0,16))
+#    vacc_period <- if(exists(paste0("done", scenario_run))) get(paste0("done", scenario_run)) else 1
+#    totaldoses <- (vacc_vector*vacc_period + (vacc_vector/7)*(timehorizon+delay-vacc_period-28)) + (vacc_vector*vacc_period + (vacc_vector/7)*(timehorizon+delay-vacc_period-((7*12)+14)))
+#    return(totaldoses)
+#  }
   
 #################################
 ####### PSA FUNCTIONs ###########
@@ -156,7 +166,13 @@ lognorm_mom <- function(mean,sd){
       LFD.sens=qbeta(sampleLSH[,15], shape1=lfd.parms$alpha, shape2=lfd.parms$beta),
       vac.uptake=qbeta(sampleLSH[,16], shape1=vac.parms$alpha, shape2=vac.parms$beta)
     )
+    
+    for(i in 1:n_psa)
+    if(psa$eff_tot2[i] < psa$eff_tot1[i]){psa$eff_tot2[i] <- psa$eff_tot1[i]}
+    if(psa$eff_inf2[i] < psa$eff_inf1[i]){psa$eff_inf2[i] <- psa$eff_inf1[i]}
+    
     # Waning vaccine immunity 
+    psa$vac_decay[psa$vac_decay > psa$eff_inf2] <- psa$eff_inf2[psa$vac_decay > psa$eff_inf2] - 0.000001 # to avoid Inf
     psa$imm_vac <- log((psa$eff_inf2-psa$vac_decay)/psa$eff_inf2)/-140
     # Waning natural immunity
     psa$imm_nat <- log(1-psa$nat_decay)/-365.25
@@ -172,12 +188,10 @@ lognorm_mom <- function(mean,sd){
   ###############################################
   
   psafunc <- function(n_psa, psa){
-    n_psa <- n_psa
     results_psa <- data.frame()
     qaly_psa <- data.frame()
     deaths_psa <- data.frame()
     dose_psa <- data.frame()
-    psa <- psa
     
     tic()
     params_list <- list()
@@ -206,8 +220,8 @@ lognorm_mom <- function(mean,sd){
       ## QALYs ##
       
       qalycalc$qaly.value[qalycalc$compartment=="cases"] <- psa.values$qaly.sym
-      qalycalc$qaly.value[qalycalc$compartment=="to_icu_i"] <- psa.values$qaly.icu
-      qalycalc$qaly.value[qalycalc$compartment=="to_nonicu_i"] <- psa.values$qaly.nonicu
+      qalycalc$qaly.value[qalycalc$compartment=="icu_i"] <- psa.values$qaly.icu
+      qalycalc$qaly.value[qalycalc$compartment=="nonicu_i"] <- psa.values$qaly.nonicu
       
       
       ## R0 - scaling ##
@@ -242,9 +256,9 @@ lognorm_mom <- function(mean,sd){
       
       # Imported infections
       
-      params$pop[[1]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.NPF)), 0)
-      params$pop[[2]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.PF)), 0)
-      params$pop[[3]]$seed_times <- 365.25
+      params$pop[[1]]$seed_times <- round(c(seq(from=delay, to=delay+round(365.25*timehorizon), by=psa.seed_freq.NPF)), 0)
+      params$pop[[2]]$seed_times <- round(c(seq(from=delay, to=delay+round(365.25*timehorizon), by=psa.seed_freq.PF)), 0)
+      params$pop[[3]]$seed_times <- 99999
       for(i in nr_pops){params$pop[[i]]$dist_seed_ages <- c(rep(0,3), rep(1,13))}
       
       uptake <- psa.values$vac.uptake
@@ -280,7 +294,7 @@ lognorm_mom <- function(mean,sd){
       }
       params$schedule <- list()         # no scheduled changes to parameters
       run1 <- cm_simulate(params, 1)
-      results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
+      results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
       rm(run1)
       
       # (2) Just non-prisoner facing (non-operational) staff
@@ -313,14 +327,14 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = 0,
           mode = "assign",
-          values = list(vacc_vals2),
-          times = c(immune2))
+          values = list(vacc_vals2, new1),
+          times = c(immune2, immune2+done2))
       )
       # Both first and second doses only administered for a short period required to vaccinate up to assumed uptake.
       
       run2 = cm_simulate(params, 1)
       #  results_run2 = run2$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run2")
-      results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
+      results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
       rm(run2)
       # (3) Just prisoner facing staff
       
@@ -353,12 +367,12 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = 1,
           mode = "assign",
-          values = list(vacc_vals3),
-          times = c(immune2)))
+          values = list(vacc_vals3, new2),
+          times = c(immune2, immune2+done3)))
       
       run3 = cm_simulate(params, 1)
       #  results_run3 = run3$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run3")
-      results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
+      results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
       rm(run3)
       gc()
       
@@ -396,8 +410,8 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(0),
           mode = "assign",
-          values = list(vacc_vals4.pop1),
-          times = c(immune2)),
+          values = list(vacc_vals4.pop1, new1),
+          times = c(immune2, immune2+done4)),
         list(
           parameter = "v",
           pops = c(1), # populations are from 0 to N-1
@@ -408,13 +422,13 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(1),
           mode = "assign",
-          values = list(vacc_vals4.pop2),
-          times = c(immune2)))
+          values = list(vacc_vals4.pop2, new2),
+          times = c(immune2, immune2+done4)))
       
       
       run4 = cm_simulate(params, 1)
       # results_run4 = run4$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run4")
-      results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
+      results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
       rm(run4)
       gc()
       
@@ -452,12 +466,12 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = 2,
           mode = "assign",
-          values = list(vacc_vals5),
-          times = c(immune2)))
+          values = list(vacc_vals5, new3),
+          times = c(immune2, immune2+done5)))
       
       run5 = cm_simulate(params, 1)
       # results_run5 = run5$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run5")
-      results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
+      results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
       gc()
       rm(run5)
       
@@ -493,42 +507,42 @@ lognorm_mom <- function(mean,sd){
           parameter = "v",
           pops = c(0),
           mode = "assign",
-          values = list(vacc_vals6.pop1, new1),
+          values = list(vacc_vals6.pop1, c(rep(0,10), new1[11:16])),
           times = c(immune1, immune1+done6)),
         list(
           parameter = "v12",
           pops = c(0),
           mode = "assign",
-          values = list(vacc_vals6.pop1),
-          times = c(immune2)),
+          values = list(vacc_vals6.pop1, c(rep(0,10), new1[11:16])),
+          times = c(immune2, immune2+done6)),
         list(
           parameter = "v",
           pops = c(1),
           mode = "assign",
-          values = list(vacc_vals6.pop2, new2),
+          values = list(vacc_vals6.pop2, c(rep(0,10), new2[11:16])),
           times = c(immune1, immune1+done6)),
         list(
           parameter = "v12",
           pops = c(1),
           mode = "assign",
-          values = list(vacc_vals6.pop2),
-          times = c(immune2)),
+          values = list(vacc_vals6.pop2, c(rep(0,10), new2[11:16])),
+          times = c(immune2, immune2+done6)),
         list(
           parameter = "v",
           pops = c(2),
           mode = "assign",
-          values = list(vacc_vals6.pop3, new3),
+          values = list(vacc_vals6.pop3, c(rep(0,10), new3[11:16])),
           times = c(immune1, immune1+done6)),
         list(
           parameter = "v12",
           pops = c(2),
           mode = "assign",
-          values = list(vacc_vals6.pop3),
-          times = c(immune2)))
+          values = list(vacc_vals6.pop3, c(rep(0,10), new3[11:16])),
+          times = c(immune2, immune2+done6)))
       
       run6 = cm_simulate(params, 1)
       # results_run6 = run6$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run6")
-      results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
+      results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
       rm(run6)
       gc()
       
@@ -563,8 +577,8 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(0),
           mode = "assign",
-          values = list(vacc_vals7.pop1),
-          times = c(immune2)),
+          values = list(vacc_vals7.pop1, new1),
+          times = c(immune2, immune2+done7)),
         list(
           parameter = "v",
           pops = c(1),
@@ -575,8 +589,8 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(1),
           mode = "assign",
-          values = list(vacc_vals7.pop2),
-          times = c(immune2)),
+          values = list(vacc_vals7.pop2, new2),
+          times = c(immune2, immune2+done7)),
         list(
           parameter = "v",
           pops = c(2),
@@ -587,13 +601,13 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(2),
           mode = "assign",
-          values = list(vacc_vals7.pop3),
-          times = c(immune2)))
+          values = list(vacc_vals7.pop3, new3),
+          times = c(immune2, immune2+done7)))
       
       gc()
       run7 = cm_simulate(params, 1)
       # results_run7 = run7$dynamics[c(compartment == "cases_i"), .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run7")
-      results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
+      results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
       rm(run7)
       gc()
       
@@ -608,7 +622,7 @@ lognorm_mom <- function(mean,sd){
       
       results_qalys <- results_qalys %>%
         group_by(scenario_run, population, group, compartment) %>% 
-        summarise(total=mean(total)) %>% ungroup()
+        summarise(total=sum(total)) %>% ungroup()
       
       results_dose = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>% dplyr::filter(compartment %in% c("onedose_i", "twodose_i"))
       totaldose <- results_dose %>% group_by(scenario_run, group, population) %>% summarise(total=sum(total))
@@ -665,26 +679,15 @@ lognorm_mom <- function(mean,sd){
   
   
   psa.age <- function(n_psa, psa){
-    n_psa <- n_psa
     results_psa <- data.frame()
     qaly_psa <- data.frame()
     deaths_psa <- data.frame()
     dose_psa <- data.frame()
-    psa <- psa
     
     tic()
     params_list <- list()
     for(k in 1:n_psa){
       psa.values <- psa[k,]
-      
-  #    # Waning vaccine immunity 
-  #    psa.values$imm_vac <- log((psa.values$eff_inf2-psa.values$vac_decay)/psa.values$eff_inf2)/-140
-  #    # Waning natural immunity
-  #    psa.values$imm_nat <- log(1-psa.values$nat_decay)/-365.25
-  #    
-  #    # Efficacy against disease
-  #    psa.values$eff_dis1 <- VEdis(psa.values$eff_tot1, psa.values$eff_inf1)
-  #    psa.values$eff_dis2 <- VEdis(psa.values$eff_tot2, psa.values$eff_inf2)
       
       for(i in 1:nr_pops){
         params$pop[[i]]$wn <- rep(psa.values$imm_nat, 16)
@@ -708,8 +711,8 @@ lognorm_mom <- function(mean,sd){
       ## QALYs ##
       
       qalycalc$qaly.value[qalycalc$compartment=="cases"] <- psa.values$qaly.sym
-      qalycalc$qaly.value[qalycalc$compartment=="to_icu_i"] <- psa.values$qaly.icu
-      qalycalc$qaly.value[qalycalc$compartment=="to_nonicu_i"] <- psa.values$qaly.nonicu
+      qalycalc$qaly.value[qalycalc$compartment=="icu_i"] <- psa.values$qaly.icu
+      qalycalc$qaly.value[qalycalc$compartment=="nonicu_i"] <- psa.values$qaly.nonicu
       
       
       ## R0 - scaling ##
@@ -735,7 +738,7 @@ lognorm_mom <- function(mean,sd){
       
       # Prevalence * number of contacts * susceptibility * proportion undetected 
       
-      psa.lambda <- psa.values$prev*contacts*u*(1-psa.values$LFD.uptake)*(1-psa.values$LFD.sens)
+      psa.lambda <- psa.values$prev*contacts*u*(1-psa.values$LFD.uptake)*(1-psa.values$LFD.sens)*(1-(psa.values$vac.uptake*psa.values$eff_inf2))
       
       # 0.003 and 0.0206 = high and low rolling 14-day average proportion of PCR tests coming back positive -> if a prevalence, does it matter if daily or fortnightly?
       
@@ -744,9 +747,9 @@ lognorm_mom <- function(mean,sd){
       
       # Imported infections
       
-      params$pop[[1]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.NPF)), 0)
-      params$pop[[2]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=psa.seed_freq.PF)), 0)
-      params$pop[[3]]$seed_times <- 365.25
+      params$pop[[1]]$seed_times <- round(c(seq(from=delay, to=delay+round(365.25*timehorizon), by=psa.seed_freq.NPF)), 0)
+      params$pop[[2]]$seed_times <- round(c(seq(from=delay, to=delay+round(365.25*timehorizon), by=psa.seed_freq.PF)), 0)
+      params$pop[[3]]$seed_times <- 99999
       for(i in nr_pops){params$pop[[i]]$dist_seed_ages <- c(rep(0,3), rep(1,13))}
       
       uptake <- psa.values$vac.uptake
@@ -782,10 +785,11 @@ lognorm_mom <- function(mean,sd){
       }
       params$schedule <- list()         # no scheduled changes to parameters
       run1 <- cm_simulate(params, 1)
-      results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
+      results_run1 = run1$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run1")
       rm(run1)
       
       # (2) Just non-prisoner facing (non-operational) staff
+      
       ## Number of doses needed for this strategy:
       scen2 <- sum(params$pop[[1]]$size)*uptake
       ## Number of days needed to administer this number of doses
@@ -814,16 +818,17 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = 0,
           mode = "assign",
-          values = list(vacc_vals2),
-          times = c(immune2))
+          values = list(vacc_vals2, new1),
+          times = c(immune2, immune2+done2))
       )
       # Both first and second doses only administered for a short period required to vaccinate up to assumed uptake.
       
       run2 = cm_simulate(params, 1)
       #  results_run2 = run2$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run2")
-      results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
+      results_run2 = run2$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run2")
       rm(run2)
       # (3) Just prisoner facing staff
+      
       
       ## Number of doses needed for this strategy:
       scen3 <- sum(params$pop[[2]]$size)*uptake
@@ -853,12 +858,12 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = 1,
           mode = "assign",
-          values = list(vacc_vals3),
-          times = c(immune2)))
+          values = list(vacc_vals3, new2),
+          times = c(immune2, immune2+done3)))
       
       run3 = cm_simulate(params, 1)
       #  results_run3 = run3$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run3")
-      results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
+      results_run3 = run3$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run3")
       rm(run3)
       gc()
       
@@ -896,8 +901,8 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(0),
           mode = "assign",
-          values = list(vacc_vals4.pop1),
-          times = c(immune2)),
+          values = list(vacc_vals4.pop1, new1),
+          times = c(immune2, immune2+done4)),
         list(
           parameter = "v",
           pops = c(1), # populations are from 0 to N-1
@@ -908,17 +913,22 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(1),
           mode = "assign",
-          values = list(vacc_vals4.pop2),
-          times = c(immune2)))
+          values = list(vacc_vals4.pop2, new2),
+          times = c(immune2, immune2+done4)))
       
       
       run4 = cm_simulate(params, 1)
       # results_run4 = run4$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run4")
-      results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
+      results_run4 = run4$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run4")
       rm(run4)
       gc()
       
       # (5) prison population
+      
+      ## Number of doses needed for this strategy:
+      
+      scen5 <- sum(params$pop[[3]]$size)*uptake
+      ## Number of days needed to administer this number of doses
       
       scen5 <- sum(params$pop[[3]]$size)*uptake
       ## Number of days needed to administer this number of doses
@@ -929,7 +939,7 @@ lognorm_mom <- function(mean,sd){
       }
       if(done5>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
       
-      ## Number of doses needed for this strategy:
+      
       params$schedule <- list() 
       for(i in 1:nr_pops){
         params$pop[[i]]$v = rep(0, 16)
@@ -947,12 +957,12 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = 2,
           mode = "assign",
-          values = list(vacc_vals5),
-          times = c(immune2)))
+          values = list(vacc_vals5, new3),
+          times = c(immune2, immune2+done5)))
       
       run5 = cm_simulate(params, 1)
       # results_run5 = run5$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run5")
-      results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
+      results_run5 = run5$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run5")
       gc()
       rm(run5)
       
@@ -967,7 +977,6 @@ lognorm_mom <- function(mean,sd){
       while((sum(params$pop[[1]]$size[11:16])*staff_to*done6 + sum(params$pop[[2]]$size[11:16])*staff_to*done6 + sum(params$pop[[3]]$size[11:16])*b_rate*done6 + total.popn)*uptake > n_vacc_daily*done6){
         done6 <- done6+0.01
       }
-      
       
       if(done6>12*7){cat(red("WARNING: Administration of first and second dose overlap - need to account for in vaccination rates"))}
       prop.pop1 <- sum(params$pop[[1]]$size[11:16])/sum(params$pop[[1]]$size[11:16]+params$pop[[2]]$size[11:16]+params$pop[[3]]$size[11:16])
@@ -989,42 +998,42 @@ lognorm_mom <- function(mean,sd){
           parameter = "v",
           pops = c(0),
           mode = "assign",
-          values = list(vacc_vals6.pop1, new1),
+          values = list(vacc_vals6.pop1, c(rep(0,10), new1[11:16])),
           times = c(immune1, immune1+done6)),
         list(
           parameter = "v12",
           pops = c(0),
           mode = "assign",
-          values = list(vacc_vals6.pop1),
-          times = c(immune2)),
+          values = list(vacc_vals6.pop1, c(rep(0,10), new1[11:16])),
+          times = c(immune2, immune2+done6)),
         list(
           parameter = "v",
           pops = c(1),
           mode = "assign",
-          values = list(vacc_vals6.pop2, new2),
+          values = list(vacc_vals6.pop2, c(rep(0,10), new2[11:16])),
           times = c(immune1, immune1+done6)),
         list(
           parameter = "v12",
           pops = c(1),
           mode = "assign",
-          values = list(vacc_vals6.pop2),
-          times = c(immune2)),
+          values = list(vacc_vals6.pop2, c(rep(0,10), new2[11:16])),
+          times = c(immune2, immune2+done6)),
         list(
           parameter = "v",
           pops = c(2),
           mode = "assign",
-          values = list(vacc_vals6.pop3, new3),
+          values = list(vacc_vals6.pop3, c(rep(0,10), new3[11:16])),
           times = c(immune1, immune1+done6)),
         list(
           parameter = "v12",
           pops = c(2),
           mode = "assign",
-          values = list(vacc_vals6.pop3),
-          times = c(immune2)))
+          values = list(vacc_vals6.pop3, c(rep(0,10), new3[11:16])),
+          times = c(immune2, immune2+done6)))
       
       run6 = cm_simulate(params, 1)
       # results_run6 = run6$dynamics[compartment == "cases_i", .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run6")
-      results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
+      results_run6 = run6$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run6")
       rm(run6)
       gc()
       
@@ -1059,8 +1068,8 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(0),
           mode = "assign",
-          values = list(vacc_vals7.pop1),
-          times = c(immune2)),
+          values = list(vacc_vals7.pop1, new1),
+          times = c(immune2, immune2+done7)),
         list(
           parameter = "v",
           pops = c(1),
@@ -1071,8 +1080,8 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(1),
           mode = "assign",
-          values = list(vacc_vals7.pop2),
-          times = c(immune2)),
+          values = list(vacc_vals7.pop2, new2),
+          times = c(immune2, immune2+done7)),
         list(
           parameter = "v",
           pops = c(2),
@@ -1083,17 +1092,17 @@ lognorm_mom <- function(mean,sd){
           parameter = "v12",
           pops = c(2),
           mode = "assign",
-          values = list(vacc_vals7.pop3),
-          times = c(immune2)))
+          values = list(vacc_vals7.pop3, new3),
+          times = c(immune2, immune2+done7)))
       
       gc()
       run7 = cm_simulate(params, 1)
       # results_run7 = run7$dynamics[c(compartment == "cases_i"), .(total = sum(value)), by = .(run, population, t)] %>% mutate(scenario_run="run7")
-      results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "to_icu_i", "to_nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
+      results_run7 = run7$dynamics[compartment %in% c("death_o", "cases", "icu_i", "nonicu_i", "onedose_i", "twodose_i"), .(total = sum(value)), by = .(run, population, group, compartment, t)] %>% mutate(scenario_run="run7")
       rm(run7)
       gc()
       
-      # get all scenarios
+      # Get all scenarios
       
       results_df = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>% dplyr::filter(compartment=="cases")
       
@@ -1104,15 +1113,16 @@ lognorm_mom <- function(mean,sd){
       
       results_qalys <- results_qalys %>%
         group_by(scenario_run, population, group, compartment) %>% 
-        summarise(total=mean(total)) %>% ungroup()
+        summarise(total=sum(total)) %>% ungroup()
       
       results_dose = do.call("rbind", list(results_run1, results_run2, results_run3, results_run4, results_run5, results_run6, results_run7)) %>% dplyr::filter(compartment %in% c("onedose_i", "twodose_i"))
       totaldose <- results_dose %>% group_by(scenario_run, group, population) %>% summarise(total=sum(total))
       
       results_qalys <- rbind(results_qalys, totaldose %>% mutate(compartment="aefi.minor"))
-      results_qalys <- rbind(results_qalys, totaldose %>% mutate(compartment="aefi.fatal"))
+      results_qalys <- rbind(results_qalys, totaldose %>% mutate(compartment="aefi.fatal", total=total/2))
+      results_qalys <- results_qalys %>% filter(compartment!=c("onedose_i", "twodose_i"))
       
-      results_qalys <- left_join(results_qalys, qalycalc, by=c("compartment", "group", "population")) %>% filter(compartment!=c("onedose_i", "twodose_i"))
+      results_qalys <- left_join(results_qalys, qalycalc, by=c("compartment", "group", "population")) 
       results_qalys <- results_qalys %>% mutate(qaly.loss=total*qaly.value) %>% 
         group_by(scenario_run, population) %>% 
         summarise(qaly.loss=sum(qaly.loss)) %>% 
