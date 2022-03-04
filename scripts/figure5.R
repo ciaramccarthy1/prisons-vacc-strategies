@@ -7,7 +7,7 @@ rm(list = ls())
 ## NEED TO SET
 
 source("~/Documents/prisons-vacc-strategies/scripts/set-up-upgrading.R")
-n_psa <- 100
+n_psa <- 10
 n_parms <- 16
 seeds <- c(123, 456, 789, 101, 999)
 
@@ -21,7 +21,7 @@ for(i in 1:5){
 prcc_list <- lapply(unique(cases_prcc$scenario_run), function(x) cases_prcc[cases_prcc$scenario_run == x,])
 for(i in 1:7){
   df <- prcc_list[[i]]
-  df <- df %>% ungroup %>% select(imm_vac:vac.uptake, total)
+  df <- df %>% ungroup %>% select(vac_decay:vac.uptake, total)
   assign(paste0("run", i),  df)
 }
 
@@ -38,7 +38,7 @@ results_prcc <- results_prcc %>% filter(parameter!="qaly.sym") %>% filter(parame
 parm.labs <- c(              "Duration of vaccine immunity",
                              "Duration of natural immunity",
                              "Staff turnover rate",
-                             "Prisoner turnover rate", 
+                             "Resident turnover rate", 
                              "VE against infection - 1st dose",
                              "VE against infection - 2nd dose",
                              "VE against disease - 1st dose",
@@ -49,8 +49,8 @@ parm.labs <- c(              "Duration of vaccine immunity",
                              "LFD sensitivity",              
                              "Vaccine uptake")
 
-results_prcc$parameter <- ordered(results_prcc$parameter, levels=c("eff_inf1", "eff_inf2", "eff_dis1", "eff_dis2", 
-                                                                   "imm_vac", "imm_nat", "staff_to", "b_rate", 
+results_prcc$parameter <- ordered(results_prcc$parameter, levels=c("eff_inf1", "eff_inf2", "eff_tot1", "eff_tot2", 
+                                                                   "vac_decay", "nat_decay", "staff_to", "b_rate", 
                                                                    "vac.uptake", "LFD.uptake", "LFD.sens", "prev",
                                                                    "target_R0"))
 param.test <- unique(results_prcc$parameter)
@@ -65,3 +65,4 @@ fig_prcc <- ggplot(results_prcc, aes(x=scenario_nr, y=est, fill=scenario)) + geo
   facet_wrap(~parameter, labeller=labeller(parameter=parm.labs))
 
 ggsave(paste0(save_path,"fig5.png"), fig_prcc, width=170, height=150, units="mm")
+

@@ -17,8 +17,9 @@ cases_facet <- cases_facet %>% dplyr::filter(scenario == "(1) no vaccination") %
   mutate(value = round((1-total/total_base)*100, 1))
 
 cases_facet <- cases_facet %>% mutate(case.avert=total_base - total)
-
-cases_facet$population <- factor(cases_facet$population, levels=c(c("(A) non-prisoner-facing staff", "(B) prisoner-facing staff", "(C) prisoners", "(A-C) all prisoners and staff")))
+cases_facet <- popnchange(cases_facet) 
+cases_facet[cases_facet=="(A-C) all prisoners and staff"] <- "(A-C) all people incarcerated and staff"
+cases_facet$population <- factor(cases_facet$population, levels=c(c("(A) staff group 1", "(B) staff group 2", "(C) people who are incarcerated", "(A-C) all people incarcerated and staff")))
 
 # Plot by population
 case_bar <- ggplot(cases_facet, aes(x = scenario, y = total, fill = scenario)) +
@@ -28,6 +29,7 @@ case_bar <- ggplot(cases_facet, aes(x = scenario, y = total, fill = scenario)) +
   labs(x="Vaccination scenario", y="Clinical cases over one year", fill="Scenario") +
   theme_bw()+ theme(text = element_text(size = 8.5)) +
   scale_fill_viridis(discrete=T) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   geom_text(aes(x = scenario, y = total,
                 label = ifelse(value==0,
                                paste0(format(value, nsmall = 1),"%"),
@@ -42,11 +44,15 @@ case_bar <- ggplot(cases_facet, aes(x = scenario, y = total, fill = scenario)) +
 deaths_facet <- results_deaths %>% group_by(run, population, scenario_run) %>% summarize(total=sum(total))
 deaths_facet <- rbind(deaths_facet, deaths_facet %>% group_by(scenario_run) %>% summarise(total=sum(total)) %>% mutate(population="(A-C) all prisoners and staff"))
 deaths_facet <- labelforplots(deaths_facet)
-deaths_facet$population <- factor(deaths_facet$population, levels=c(c("(A) non-prisoner-facing staff", "(B) prisoner-facing staff", "(C) prisoners", "(A-C) all prisoners and staff")))
+# deaths_facet$population <- factor(deaths_facet$population, levels=c(c("(A) non-prisoner-facing staff", "(B) prisoner-facing staff", "(C) prisoners", "(A-C) all prisoners and staff")))
 deaths_facet <- deaths_facet %>% dplyr::filter(scenario == "(1) no vaccination") %>% group_by(scenario_run, population, scenario, scenario_nr) %>%
   summarize(total_base=total) %>% ungroup %>% dplyr::select(population, total_base) %>%
   full_join(deaths_facet, by=c("population")) %>%
   mutate(value = round((1-total/total_base)*100, 1)) 
+
+deaths_facet <- popnchange(deaths_facet)
+deaths_facet[deaths_facet=="(A-C) all prisoners and staff"] <- "(A-C) all people incarcerated and staff"
+deaths_facet$population <- factor(deaths_facet$population, levels=c(c("(A) staff group 1", "(B) staff group 2", "(C) people who are incarcerated", "(A-C) all people incarcerated and staff")))
 
 death_bar <- ggplot(deaths_facet, aes(x = scenario, y = total, fill = scenario)) +
   geom_bar(stat = "identity", alpha = 0.7, show.legend=T) +
@@ -55,6 +61,7 @@ death_bar <- ggplot(deaths_facet, aes(x = scenario, y = total, fill = scenario))
   labs(x="Vaccination scenario", y="Deaths over one year", fill="Scenario") +
   theme_bw()+ theme(text = element_text(size = 8.5)) +
   scale_fill_viridis(discrete=T) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   geom_text(aes(x = scenario, y = total,
                 label = ifelse(value==0,
                                paste0(format(value, nsmall = 1),"%"),
@@ -66,8 +73,7 @@ death_bar <- ggplot(deaths_facet, aes(x = scenario, y = total, fill = scenario))
 # QALYS ##
 
 qalys_facet <- labelforplots(results_qalys)
-qalys_facet$population <- factor(qalys_facet$population, levels=c(c("(A) non-prisoner-facing staff", "(B) prisoner-facing staff", "(C) prisoners", "(A-C) all prisoners and staff")))
- 
+
 qalys_facet <- qalys_facet %>% ungroup() %>%
   dplyr::filter(scenario == "(1) no vaccination") %>%
   dplyr::rename(total_base = qaly.loss) %>%
@@ -77,6 +83,10 @@ qalys_facet <- qalys_facet %>% ungroup() %>%
             by=c("population")) %>%
   mutate(value = round((1-qaly.loss/total_base)*100, 1))
 
+qalys_facet <- popnchange(qalys_facet)
+qalys_facet[qalys_facet=="(A-C) all prisoners and staff"] <- "(A-C) all people incarcerated and staff"
+qalys_facet$population <- factor(qalys_facet$population, levels=c(c("(A) staff group 1", "(B) staff group 2", "(C) people who are incarcerated", "(A-C) all people incarcerated and staff")))
+
 qaly_bar <- ggplot(qalys_facet, aes(x = scenario, y = qaly.loss, fill = scenario)) +
   geom_bar(stat = "identity", alpha = 0.7, show.legend=T) +
   facet_wrap(~population, ncol=2, scales = "free") +
@@ -84,6 +94,7 @@ qaly_bar <- ggplot(qalys_facet, aes(x = scenario, y = qaly.loss, fill = scenario
   labs(x="Vaccination scenario", y="QALYs lost over one year", fill="Scenario") +
   scale_fill_viridis(discrete=T) + 
   theme_bw()+ theme(text = element_text(size = 8.5)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   geom_text(aes(x = scenario, y = qaly.loss,
                 label = ifelse(value==0,
                                paste0(format(value, nsmall = 1),"%"),

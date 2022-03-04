@@ -29,6 +29,8 @@ cases_fig1 = cases_fig1 %>% dplyr::filter(scenario == "(1) no vaccination") %>% 
   mutate(value = round((1-total/total_base)*100, 1))
 
 cases_fig1 <- cases_fig1 %>% mutate(case.avert=total_base - total)
+cases_fig1 <- popnchange(cases_fig1)
+
 cases_stack <- cases_fig1 %>% group_by(scenario) %>% mutate(mean.bar=sum(total), total.value=round((100-sum(total)/sum(total_base)*100),1), overall.base=sum(total_base)) %>% ungroup()
 
 case.stack.plot <- ggplot(cases_stack, aes(x = scenario, y = total, fill=scenario, alpha=population), show_guide=F) +
@@ -62,6 +64,8 @@ deaths_fig1 <- deaths_fig1 %>% dplyr::filter(scenario == "(1) no vaccination") %
   full_join(deaths_fig1, by=c("population")) %>%
   mutate(value = round((1-total/total_base)*100, 1)) 
 
+deaths_fig1 <- popnchange(deaths_fig1)
+
 deaths_stack <- deaths_fig1 %>%
   group_by(scenario) %>% 
   mutate(mean.bar=sum(total), total.value=round((100-sum(total)/sum(total_base)*100),1), overall.base=sum(total_base)) %>% ungroup()
@@ -70,7 +74,7 @@ deaths.stack.plot <- ggplot(deaths_stack, aes(x = scenario, y = total, fill = sc
   geom_bar(stat = "identity", show.legend = T) +
   scale_alpha_discrete(range=c(0.4,1)) +
   scale_x_discrete(labels=unique(deaths_stack$scenario_nr)) +
-  coord_cartesian(ylim = c(0, 15)) +
+  coord_cartesian(ylim = c(0, 6)) +
   labs(x="Vaccination scenario", y="Deaths over one year", legend.title="Scenario") +
   theme_bw() +
   theme(text=element_text(size=8.5)) +
@@ -101,6 +105,8 @@ qalys_fig1 <- qalys_fig1 %>% ungroup() %>%
   mutate(value = round((1-qaly.loss/total_base)*100, 1))
 
 qaly_stack <- qalys_fig1 %>% dplyr::filter(population!="(A-C) all prisoners and staff")
+qaly_stack <- popnchange(qaly_stack)
+
 qaly_stack <- qaly_stack %>% group_by(scenario) %>% mutate(mean.bar=sum(qaly.loss), total.value=round((100-sum(qaly.loss)/sum(total_base)*100),1), overall.base=sum(total_base)) %>% ungroup()
 
 qaly.stack.plot <- ggplot(qaly_stack, aes(x = scenario, y = qaly.loss, fill = scenario, alpha=population)) +
@@ -108,7 +114,7 @@ qaly.stack.plot <- ggplot(qaly_stack, aes(x = scenario, y = qaly.loss, fill = sc
   scale_alpha_discrete(range=c(0.4,1)) +
   scale_x_discrete(labels=unique(qaly_stack$scenario_nr)) +
   labs(x="Vaccination scenario", y="QALYs lost over one year", legend.title="Scenario") +
-  coord_cartesian(ylim = c(0, 200)) +
+  coord_cartesian(ylim = c(0, 50)) +
   theme_bw() +
   theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete = TRUE) + 
@@ -158,6 +164,8 @@ cases_fig1 = cases_fig1 %>% dplyr::filter(scenario == "(1) no vaccination") %>% 
   mutate(value = round((1-total/total_base)*100, 1))
 
 cases_fig1 <- cases_fig1 %>% mutate(case.avert=total_base - total)
+cases_fig1 <- popnchange(cases_fig1)
+
 cases_stack <- cases_fig1 %>% group_by(scenario) %>% mutate(mean.bar=sum(total), total.value=round((100-sum(total)/sum(total_base)*100),1), overall.base=sum(total_base)) %>% ungroup()
 
 case.stack.plot <- ggplot(cases_stack, aes(x = scenario, y = total, fill=scenario, alpha=population), show_guide=F) +
@@ -191,6 +199,8 @@ deaths_fig1 <- deaths_fig1 %>% dplyr::filter(scenario == "(1) no vaccination") %
   full_join(deaths_fig1, by=c("population")) %>%
   mutate(value = round((1-total/total_base)*100, 1)) 
 
+deaths_fig1 <- popnchange(deaths_fig1)
+
 deaths_stack <- deaths_fig1 %>%
   group_by(scenario) %>% 
   mutate(mean.bar=sum(total), total.value=round((100-sum(total)/sum(total_base)*100),1), overall.base=sum(total_base)) %>% ungroup()
@@ -199,7 +209,7 @@ deaths.stack.plot <- ggplot(deaths_stack, aes(x = scenario, y = total, fill = sc
   geom_bar(stat = "identity", show.legend = T) +
   scale_alpha_discrete(range=c(0.4,1)) +
   scale_x_discrete(labels=unique(deaths_stack$scenario_nr)) +
-  coord_cartesian(ylim = c(0, 15)) +
+  coord_cartesian(ylim = c(0, 6)) +
   labs(x="Vaccination scenario", y="Deaths over one year", legend.title="Scenario") +
   theme_bw() +
   theme(text=element_text(size=8.5)) +
@@ -232,12 +242,14 @@ qalys_fig1 <- qalys_fig1 %>% ungroup() %>%
 qaly_stack <- qalys_fig1 %>% dplyr::filter(population!="(A-C) all prisoners and staff")
 qaly_stack <- qaly_stack %>% group_by(scenario) %>% mutate(mean.bar=sum(qaly.loss), total.value=round((100-sum(qaly.loss)/sum(total_base)*100),1), overall.base=sum(total_base)) %>% ungroup()
 
+qaly_stack <- popnchange(qaly_stack)
+
 qaly.stack.plot <- ggplot(qaly_stack, aes(x = scenario, y = qaly.loss, fill = scenario, alpha=population)) +
   geom_bar(stat = "identity", show.legend = T) +
   scale_alpha_discrete(range=c(0.4,1)) +
   scale_x_discrete(labels=unique(qaly_stack$scenario_nr)) +
   labs(x="Vaccination scenario", y="QALYs lost over one year", legend.title="Scenario") +
-  coord_cartesian(ylim = c(0, 200)) +
+  coord_cartesian(ylim = c(0, 50)) +
   theme_bw() +
   theme(text=element_text(size=8.5)) +
   scale_fill_viridis(discrete = TRUE) + 
@@ -263,5 +275,6 @@ scen2 <- plot_grid(case.stack.plot + theme(legend.position = "none"),
 legend_7 <- get_legend(case.stack.plot + 
                          theme(legend.box.margin = margin(0, 0, 0, 6)))
 
-fig.mix <- plot_grid(scen1, scen2, legend_1, ncol=3, rel_widths = c(1,1,0.75), labels=c("1", "2"), vjust=1, label_size=10)
+fig.mix <- plot_grid(scen1, scen2, legend_1, ncol=3, rel_widths = c(1,1,1), labels=c("1", "2"), vjust=1, label_size=10)
 ggsave(paste0(save_path,"fig3.png"), fig.mix, width=170, height=190, units="mm")
+

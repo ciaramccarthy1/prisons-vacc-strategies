@@ -20,7 +20,7 @@ for(i in 1:5){
 
 cases_fig5 <- cases_fig5 %>% group_by(scenario_run, t) %>% summarise(median.total=median(total), lower=quantile(total, prob=0.025), upper=quantile(total, prob=0.975))
 cases_fig5 <- labelforplots(cases_fig5)
-cases_fig5 <- cases_fig5 %>% mutate(t=(t-365)) %>% filter(t>=0)
+cases_fig5 <- cases_fig5 %>% mutate(t=(t-delay)) %>% filter(t>=0)
 
 fig5 <- ggplot(cases_fig5, aes(x = t, y = median.total, color=scenario)) +
   geom_line() + labs(x="Time in days", y="Incidence of new clinical cases") +

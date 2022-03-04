@@ -7,22 +7,22 @@ rm(list = ls())
 
 ## NEED TO SET:
 
-n_psa <- 100
+n_psa <- 50
 n_parms <- 16
 seeds <- c(123, 456, 789, 101, 999)
 
 source("~/Documents/prisons-vacc-strategies/scripts/set-up-upgrading.R")
 
 # Prep burden_processes.old
-P.icu_symp     = c(P.icu_symp[3:16],rep(P.icu_symp[16],2));
-P.nonicu_symp  = c(P.nonicu_symp[3:16],rep(P.nonicu_symp[16],2));
-P.death_icu    = c(P.death_icu[3:16], rep(P.death_icu[16],2));
-P.death_nonicu = c(P.death_nonicu[3:16], rep(P.death_nonicu[16],2));
-hfr = c(hfr[3:16],rep(hfr[16],2))
+# P.icu_inf_pris     = c(P.icu_inf[3:16],rep(P.icu_inf[16],2));
+# P.nonicu_inf_pris  = c(P.nonicu_inf[3:16],rep(P.nonicu_inf[16],2));
+# P.death_icu_pris    = c(P.death_icu[3:16], rep(P.death_icu[16],2));
+P.death_nonicu_pris = c(P.death_nonicu[3:16], rep(P.death_nonicu[16],2));
+# hfr_pris = c(hfr[3:16],rep(hfr[16],2))
 
 burden_processes.old = list(
-  list(source = "Ip", type = "multinomial", names = c("to_icu", "to_nonicu", "null"), report = c("", "", ""),
-       prob = matrix(c(P.icu_symp, P.nonicu_symp, 1 - P.icu_symp - P.nonicu_symp), nrow = 3, ncol = 16, byrow = T),
+  list(source = "E", type = "multinomial", names = c("to_icu", "to_nonicu", "null"), report = c("i", "i", ""),
+       prob = matrix(c(P.icu_inf_pris, P.nonicu_inf_pris, 1 - P.icu_inf_pris - P.nonicu_inf_pris), nrow = 3, ncol = 16, byrow = T),
        delays = matrix(c(cm_delay_gamma(7, 7, 60, 0.25)$p, cm_delay_gamma(7, 7, 60, 0.25)$p, cm_delay_skip(60, 0.25)$p), nrow = 3, byrow = T)),
   
   list(source = "to_icu", type = "multinomial", names = "icu", report = "p",
@@ -34,7 +34,7 @@ burden_processes.old = list(
        delays = matrix(cm_delay_gamma(8, 8, 60, 0.25)$p, nrow = 1, byrow = T)),
   
   list(source = "E", type = "multinomial", names = c("death", "null"), report = c("o", ""),
-       prob = matrix(c(P.death_nonicu, 1 - P.death_nonicu), nrow = 2, ncol = 16, byrow = T),
+       prob = matrix(c(P.death_nonicu_pris, 1 - P.death_nonicu_pris), nrow = 2, ncol = 16, byrow = T),
        delays = matrix(c(cm_delay_gamma(22, 22, 60, 0.25)$p, cm_delay_skip(60, 0.25)$p), nrow = 2, byrow = T)),
   
   list(source = "V", type="multinomial", names="onedose", report="i",
@@ -63,7 +63,7 @@ for(z in seeds){
 }
 
 source("~/Documents/prisons-vacc-strategies/scripts/set-up-upgrading.R")
-n_psa <- 100
+n_psa <- 50
 n_parms <- 16
 seeds <- c(123, 456, 789, 101, 999)
 
@@ -164,16 +164,16 @@ dose.calc <- dose.calc %>% group_by(scenario_run) %>% summarise(median.case=medi
 dose.calc <- labelforplots(dose.calc)
 
 case <- ggplot(dose.calc, aes(x=scenario_nr, y=median.case, fill=scenario)) + geom_col(alpha = 0.7) + 
-  xlab("Vaccination scenario") + ylab("Vaccinations per case averted") + scale_fill_viridis(discrete=TRUE, name="Scenario") + theme_bw() + coord_cartesian(ylim = c(0, 20)) +
+  xlab("Vaccination scenario") + ylab("Vaccinations per case averted") + scale_fill_viridis(discrete=TRUE, name="Scenario") + theme_bw() + coord_cartesian(ylim = c(0, 35)) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + theme(text=element_text(size=8.5)) + geom_errorbar(mapping=aes(ymin=lower.case, ymax=upper.case), width=0.2)
 
 death <- ggplot(dose.calc, aes(x=scenario_nr, y=median.death, fill=scenario)) + geom_col(alpha = 0.7) + 
-  xlab("Vaccination scenario") + ylab("Vaccinations per death averted") + scale_fill_viridis(discrete=TRUE, name="Scenario") + theme_bw() + coord_cartesian(ylim = c(0, 2000)) +
+  xlab("Vaccination scenario") + ylab("Vaccinations per death averted") + scale_fill_viridis(discrete=TRUE, name="Scenario") + theme_bw() + coord_cartesian(ylim = c(0, 3000)) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + theme(text=element_text(size=8.5)) + geom_errorbar(mapping=aes(ymin=lower.death, ymax=upper.death), width=0.2)
 
 qaly <- ggplot(dose.calc, aes(x=scenario_nr, y=median.qaly, fill=scenario)) + geom_col(alpha = 0.7) + 
   xlab("Vaccination scenario") + ylab("Vaccinations per QALY loss averted") + 
-  scale_fill_viridis(discrete=TRUE, name="Scenario") + theme_bw() + coord_cartesian(ylim = c(0, 250)) +
+  scale_fill_viridis(discrete=TRUE, name="Scenario") + theme_bw() + coord_cartesian(ylim = c(0, 850)) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + theme(text=element_text(size=8.5)) +
   geom_errorbar(mapping=aes(ymin=lower.qaly, ymax=upper.qaly), width=0.2)
 
@@ -322,7 +322,7 @@ fig7 <- plot_grid(basecase, legend_7, ncol = 2, rel_widths = c(1, 0.25))
 ## Doses per case, qaly lost and death averted, introduction pre-outbreak. Time horizon = 1 year ##
 
 
-fig7a <- plot_grid(basecase, dose.per.outcome, legend_7, ncol = 3, rel_widths = c(1, 1, 0.75))
+fig7a <- plot_grid(basecase, dose.per.outcome, legend_7, ncol = 3, rel_widths = c(1, 1, 1))
 ggsave(paste0(save_path,"fig4.png"), fig7a, width=170, height=190, units="mm")
 
 # Back to base case:

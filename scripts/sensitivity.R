@@ -2,10 +2,10 @@
 
 ## VACCINE PARAMETERS ##
 
-for(i in 1:nr_pops){params$pop[[i]]$ei_v <- rep(mean.inf1,16) # vaccine efficacy against infection, first dose
-params$pop[[i]]$ei_v2 <- rep(mean.inf2,16) # vaccine efficacy against infection, second dose
-params$pop[[i]]$ed_vi <- rep(mean.dis1,16) # vaccine efficacy against disease given infection, first dose (i.e. no additional protection)
-params$pop[[i]]$ed_vi2 <- rep(mean.dis2,16) # vaccine efficacY against disease given infection, second dose (0.78-0.67)/(1-0.67)
+for(i in 1:nr_pops){params$pop[[i]]$ei_v <- rep(eff_inf1,16) # vaccine efficacy against infection, first dose
+params$pop[[i]]$ei_v2 <- rep(eff_inf2,16) # vaccine efficacy against infection, second dose
+params$pop[[i]]$ed_vi <- rep(eff_dis1,16) # vaccine efficacy against disease given infection, first dose (i.e. no additional protection)
+params$pop[[i]]$ed_vi2 <- rep(eff_dis2,16) # vaccine efficacY against disease given infection, second dose (0.78-0.67)/(1-0.67)
 # params$pop[[i]]$v2 = rep(0,16) # nobody going straight from S to V2
 }
 
@@ -76,31 +76,38 @@ seed_freq.PF <- 1/import.total.PF
 
 # Imported infections
 
-params$pop[[1]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=seed_freq.NPF)), 0)
-params$pop[[2]]$seed_times <- round(c(seq(from=365.25, to=365.25+round(365.25*timehorizon), by=seed_freq.PF)), 0)
-params$pop[[3]]$seed_times <- 365.25
+params$pop[[1]]$seed_times <- round(c(seq(from=delay, to=delay+round(365.25+timehorizon), by=seed_freq.NPF)), 0)
+params$pop[[2]]$seed_times <- round(c(seq(from=delay, to=delay+round(365.25*timehorizon), by=seed_freq.PF)), 0)
+params$pop[[3]]$seed_times <- 99999
 for(i in nr_pops){params$pop[[i]]$dist_seed_ages <- c(rep(0,3), rep(1,13))}
 
 
 
 #### VACCINATION RATE - NEW PRISONERS/STAFF
-new1 <- n_vacc_daily/(sum(params$pop[[1]]$size)*staff_to*uptake)
-new2 <- n_vacc_daily/(sum(params$pop[[2]]$size)*staff_to*uptake)
-new3 <- n_vacc_daily/(sum(params$pop[[3]]$size)*b_rate*uptake)
-
+# new1 <- n_vacc_daily/(sum(params$pop[[1]]$size)*staff_to*uptake)
+# new2 <- n_vacc_daily/(sum(params$pop[[2]]$size)*staff_to*uptake)
+# new3 <- n_vacc_daily/(sum(params$pop[[3]]$size)*b_rate*uptake)
+# 
 prop.pop1 <- sum(params$pop[[1]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
 prop.pop2 <- sum(params$pop[[2]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
 prop.pop3 <- sum(params$pop[[3]]$size)/sum(params$pop[[1]]$size+params$pop[[2]]$size+params$pop[[3]]$size)
+# 
+# vacc_vals7.pop1 <- c((n_vacc_daily-5)*prop.pop1*params$pop[[1]]$size/sum(params$pop[[1]]$size))
+# vacc_vals7.pop2 <- c((n_vacc_daily-5)*prop.pop2*params$pop[[2]]$size/sum(params$pop[[2]]$size))
+# vacc_vals7.pop3 <- c((n_vacc_daily-5)*prop.pop3*params$pop[[3]]$size/sum(params$pop[[3]]$size)) + 5*params$pop[[3]]$size/sum(params$pop[[3]]$size)
+# 
+# new1.7 <- sum(vacc_vals7.pop1)/(sum(params$pop[[1]]$size)*staff_to*uptake)
+# new2.7 <- sum(vacc_vals7.pop2)/(sum(params$pop[[2]]$size)*staff_to*uptake)
+# new3.7 <- sum(vacc_vals7.pop3)/(sum(params$pop[[3]]$size)*b_rate*uptake)
+
+## CORRECTING VACCINATION RATE - NEW PRISONERS AND STAFF 
+# Want coverage in new prisoners and staff to be equivalent to uptake, not anything to do with number administered daily when in campaign mode.
+
+new1 <- params$pop[[1]]$size*staff_to*uptake
+new2 <- params$pop[[2]]$size*staff_to*uptake
+new3 <- params$pop[[3]]$size*b_rate*uptake
 
 vacc_vals7.pop1 <- c((n_vacc_daily-5)*prop.pop1*params$pop[[1]]$size/sum(params$pop[[1]]$size))
 vacc_vals7.pop2 <- c((n_vacc_daily-5)*prop.pop2*params$pop[[2]]$size/sum(params$pop[[2]]$size))
 vacc_vals7.pop3 <- c((n_vacc_daily-5)*prop.pop3*params$pop[[3]]$size/sum(params$pop[[3]]$size)) + 5*params$pop[[3]]$size/sum(params$pop[[3]]$size)
-
-new1.7 <- sum(vacc_vals7.pop1)/(sum(params$pop[[1]]$size)*staff_to*uptake)
-new2.7 <- sum(vacc_vals7.pop2)/(sum(params$pop[[2]]$size)*staff_to*uptake)
-new3.7 <- sum(vacc_vals7.pop3)/(sum(params$pop[[3]]$size)*b_rate*uptake)
-
-
-
-
 

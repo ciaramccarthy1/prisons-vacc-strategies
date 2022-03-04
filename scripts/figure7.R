@@ -7,7 +7,7 @@
 rm(list = ls())
 
 ## NEED TO SET:
-n_psa <- 100
+n_psa <- 10
 n_parms <- 16
 seeds <- c(123, 456, 789, 101, 999)
 
@@ -32,7 +32,7 @@ for(i in 1:5){
 
 case_npis <- case_npis %>% group_by(scenario_run, t) %>% summarise(median.total=median(total), lower=quantile(total, prob=0.025), upper=quantile(total, prob=0.975))
 case_npis <- labelforplots(case_npis)
-case_npis <- case_npis %>% mutate(t=(t-365)) %>% filter(t>=0)
+case_npis <- case_npis %>% mutate(t=(t-delay)) %>% filter(t>=0)
 
 ### Also need output from w/o NPIs:
 cases_fig5 <- data.frame()
@@ -44,7 +44,7 @@ for(i in 1:5){
 
 cases_fig5 <- cases_fig5 %>% group_by(scenario_run, t) %>% summarise(median.total=median(total), lower=quantile(total, prob=0.025), upper=quantile(total, prob=0.975))
 cases_fig5 <- labelforplots(cases_fig5)
-cases_fig5 <- cases_fig5 %>% mutate(t=(t-365)) %>% filter(t>=0)
+cases_fig5 <- cases_fig5 %>% mutate(t=(t-delay)) %>% filter(t>=0)
 
 ## Putting them together:
 

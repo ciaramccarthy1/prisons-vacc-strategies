@@ -6,7 +6,7 @@
 
 rm(list = ls())
 
-n_psa <- 100
+n_psa <- 10
 n_parms <- 16
 seeds <- c(123, 456, 789, 101, 999)
 source("~/Documents/prisons-vacc-strategies/scripts/set-up-upgrading.R")
@@ -21,7 +21,7 @@ for(i in 1:5){
 prcc_list <- lapply(unique(qaly_prcc$scenario_run), function(x) qaly_prcc[qaly_prcc$scenario_run == x,])
 for(i in 1:7){
   df <- prcc_list[[i]]
-  df <- df %>% ungroup %>% select(imm_vac:vac.uptake, total)
+  df <- df %>% ungroup %>% select(vac_decay:vac.uptake, total)
   
   assign(paste0("run", i),  df)
 }
@@ -36,7 +36,7 @@ qaly_prcc <- do.call("rbind", list(run1.prcc, run2.prcc, run3.prcc, run4.prcc, r
 qaly_prcc <- labelforplots(qaly_prcc)
 
 parm.labs <- c("Duration of vaccine immunity", "Duration of natural immunity", "Staff turnover rate",
-               "Prisoner turnover rate", "QALY loss - symptomatic",
+               "Resident turnover rate", "QALY loss - symptomatic",
                "QALY loss - non-ICU",
                "QALY loss - ICU",
                "VE against infection - 1st dose",
@@ -50,8 +50,8 @@ parm.labs <- c("Duration of vaccine immunity", "Duration of natural immunity", "
                "Vaccine uptake")
 
 
-qaly_prcc$parameter <- ordered(qaly_prcc$parameter, levels=c("eff_inf1", "eff_inf2", "eff_dis1", "eff_dis2", 
-                                                             "imm_vac", "imm_nat", "staff_to", "b_rate", 
+qaly_prcc$parameter <- ordered(qaly_prcc$parameter, levels=c("eff_inf1", "eff_inf2", "eff_tot1", "eff_tot2", 
+                                                             "vac_decay", "nat_decay", "staff_to", "b_rate", 
                                                              "vac.uptake", "LFD.uptake", "LFD.sens", "prev",
                                                              "target_R0", "qaly.sym", "qaly.nonicu", "qaly.icu"))
 param.qaly <- unique(qaly_prcc$parameter)
@@ -65,3 +65,4 @@ fig_prcc_qaly <- ggplot(qaly_prcc, aes(x=scenario_nr, y=est, fill=scenario)) + g
   facet_wrap(~parameter, labeller=labeller(parameter=parm.labs))
 
 ggsave(paste0(save_path,"supfig2.png"), fig_prcc_qaly, width=170, height=150, units="mm")
+

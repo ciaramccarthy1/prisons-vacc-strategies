@@ -6,7 +6,7 @@
 
 rm(list = ls())
 
-n_psa <- 100
+n_psa <- 10
 n_parms <- 16
 seeds <- c(123, 456, 789, 101, 999)
 source("~/Documents/prisons-vacc-strategies/scripts/psa5yr.R")
@@ -21,6 +21,8 @@ for(z in seeds){
   rm(list=setdiff(ls(), c("n_psa", "n_parms", "seeds", "psa", "psafive")))
 }
 
+source("~/Documents/prisons-vacc-strategies/scripts/set-up-upgrading.R")
+
 cases_fig10 <- data.frame()
 for(i in 1:5){
   case.5yr <- read.csv(paste0(save_path,"case-5yr", seeds[i], ".csv")) %>% select(scenario_run, t, run, total)
@@ -31,7 +33,7 @@ for(i in 1:5){
 # cases_fig10 <- results_psa %>% group_by(scenario_run, t, run) %>% summarise(total=sum(total))
 cases_fig10 <- cases_fig10 %>% group_by(scenario_run, t) %>% summarise(mean.total=median(total), lower=quantile(total, prob=0.025), upper=quantile(total, prob=0.975))
 cases_fig10 <- labelforplots(cases_fig10)
-cases_fig10 <- cases_fig10 %>% mutate(t=(t-365)) %>% filter(t>=0)
+cases_fig10 <- cases_fig10 %>% mutate(t=(t-delay)) %>% filter(t>=0)
 cases_fig10 <- cases_fig10 %>% mutate(t=t/365.25)
 
 fig10 <- ggplot(cases_fig10, aes(x = t, y = mean.total, color=scenario)) +
